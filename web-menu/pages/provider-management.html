@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>供應商管理</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body {
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+    }
+
+    .proxy-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 20px; border-radius: 6px; font-size: 14px; }
+    .proxy-status.connected { background: var(--color-menu-active); color: var(--color-menu-active-text); }
+    .proxy-status.disconnected { background: #f8d7da; color: #721c24; }
+    .proxy-status.checking { background: var(--color-menu-hover); color: var(--color-text-secondary); }
+
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header-row h1 { margin: 0; font-size: 24px; }
+
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-primary { background: var(--color-primary); color: white; }
+    .btn-primary:hover { background: var(--color-primary-hover); }
+    .btn-secondary { background: var(--color-text-secondary); color: white; }
+    .btn-secondary:hover { opacity: 0.9; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-danger:hover { background: #c82333; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-success:hover { background: #218838; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .provider-card { border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; background: var(--color-surface); }
+    .provider-card-header { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; user-select: none; }
+    .provider-card-header:hover { background: var(--color-menu-hover); }
+    .provider-card-icon { font-size: 24px; margin-right: 12px; }
+    .provider-card-name { flex: 1; font-weight: 600; }
+    .provider-card-status { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .provider-card-status.connected { background: var(--color-menu-active); color: var(--color-menu-active-text); }
+    .provider-card-status.error { background: #f8d7da; color: #721c24; }
+    .provider-card-status.unknown { background: var(--color-menu-hover); color: var(--color-text-secondary); }
+    .provider-card-toggle { margin-left: 12px; font-size: 12px; color: var(--color-text-secondary); }
+
+    .provider-card-body { display: none; padding: 16px; border-top: 1px solid var(--color-border); }
+    .provider-card.expanded .provider-card-body { display: block; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
+    .form-group input { width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; box-sizing: border-box; background: var(--color-surface); color: var(--color-text); }
+    .form-group input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(0,123,255,0.25); }
+    .form-select { width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; background: var(--color-surface); color: var(--color-text); }
+    .form-group input.error { border-color: #dc3545; }
+    .form-group .error-message { color: #dc3545; font-size: 12px; margin-top: 4px; }
+
+    .card-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+
+    .dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .dialog-overlay.active { display: flex; }
+    .dialog { background: var(--color-surface); border-radius: 8px; padding: 24px; width: 400px; max-width: 90vw; }
+    .dialog h2 { margin: 0 0 16px 0; font-size: 20px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    .debug-panel { margin-top: 30px; border: 2px dashed var(--color-text-secondary); border-radius: 8px; padding: 16px; display: none; }
+    .debug-panel.active { display: block; }
+    .debug-panel h3 { margin: 0 0 12px 0; color: var(--color-text-secondary); }
+    .debug-panel textarea { width: 100%; height: 200px; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid var(--color-border); border-radius: 4px; resize: vertical; background: var(--color-surface); color: var(--color-text); }
+    .debug-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+    .empty-state { text-align: center; padding: 40px; color: var(--color-text-secondary); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; z-index: 2000; animation: slideIn 0.3s ease; }
+    .toast.success { background: #28a745; }
+    .toast.error { background: #dc3545; }
+    .toast.info { background: #17a2b8; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div class="header-row">
+    <h1 id="page-title"></h1>
+    <button class="btn btn-primary" id="addProviderBtn"></button>
+  </div>
+
+  <div class="proxy-status checking" id="proxyStatus">
+    <span>⏳</span>
+    <span id="proxy-status-text"></span>
+  </div>
+
+  <div id="providerList"></div>
+
+  <div class="dialog-overlay" id="addDialog">
+    <div class="dialog">
+      <h2 id="dialog-title"></h2>
+      <div class="form-group">
+        <label for="providerType" id="label-type"></label>
+        <select id="providerType" class="form-select">
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="providerName" id="label-name"></label>
+        <input type="text" id="providerName">
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="cancelAddBtn"></button>
+        <button class="btn btn-primary" id="confirmAddBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="debug-panel" id="debugPanel">
+    <h3 id="debug-title"></h3>
+    <textarea id="debugJson" spellcheck="false"></textarea>
+    <div class="debug-actions">
+      <button class="btn btn-success btn-sm" id="debugSaveBtn"></button>
+      <button class="btn btn-secondary btn-sm" id="debugExportBtn"></button>
+      <button class="btn btn-secondary btn-sm" id="debugImportBtn"></button>
+      <input type="file" id="debugImportFile" accept=".json" style="display:none;">
+    </div>
+  </div>
+
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/iframe-client.js"></script>
+  <script src="../config/provider-types.js"></script>
+  <script src="../lib/provider-manager.js"></script>
+  <script>
+    (function() {
+      'use strict'
+
+      var T = {
+        'zh-TW': {
+          title: '供應商管理',
+          addProvider: '+ 新增供應商',
+          proxyChecking: '檢查 Proxy 連線狀態...',
+          proxyConnected: 'Proxy 已連線',
+          proxyDisconnected: 'Proxy 未連線 — 請先啟動 ai-proxy 服務',
+          dialogTitle: '新增供應商',
+          typeLabel: '供應商類型',
+          selectPlaceholder: '-- 請選擇 --',
+          nameLabel: '供應商名稱',
+          namePlaceholder: '例如：我的 OpenAI',
+          cancel: '取消',
+          confirm: '確認新增',
+          debugTitle: '🔧 Debug Panel（JSON Editor）',
+          debugSave: '儲存到 localStorage',
+          debugExport: '匯出',
+          debugImport: '匯入',
+          statusConnected: '已連線',
+          statusError: '連線失敗',
+          statusUnknown: '未連線',
+          toggleExpand: '▶ 展開',
+          toggleCollapse: '▼ 收合',
+          btnTest: '測試連線',
+          btnSave: '儲存',
+          btnDelete: '刪除',
+          emptyState: '尚未新增任何供應商',
+          toastTesting: '正在測試連線...',
+          toastTestSuccess: '連線成功！',
+          toastTestFailed: '連線失敗：',
+          toastSaved: '儲存成功',
+          toastDeleted: '已刪除',
+          toastSelectType: '請選擇供應商類型',
+          toastCreateFailed: '建立供應商失敗',
+          toastAdded: '已新增供應商',
+          toastJsonError: 'JSON 格式錯誤或資料無效',
+          toastExported: '已匯出',
+          toastLoaded: '已載入檔案，請點擊「儲存到 localStorage」',
+          confirmDelete: '確定要刪除此供應商設定嗎？'
+        },
+        'en': {
+          title: 'Provider Management',
+          addProvider: '+ Add Provider',
+          proxyChecking: 'Checking Proxy status...',
+          proxyConnected: 'Proxy connected',
+          proxyDisconnected: 'Proxy disconnected — please start ai-proxy service',
+          dialogTitle: 'Add Provider',
+          typeLabel: 'Provider Type',
+          selectPlaceholder: '-- Select --',
+          nameLabel: 'Provider Name',
+          namePlaceholder: 'e.g. My OpenAI',
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+          debugTitle: '🔧 Debug Panel (JSON Editor)',
+          debugSave: 'Save to localStorage',
+          debugExport: 'Export',
+          debugImport: 'Import',
+          statusConnected: 'Connected',
+          statusError: 'Error',
+          statusUnknown: 'Unknown',
+          toggleExpand: '▶ Expand',
+          toggleCollapse: '▼ Collapse',
+          btnTest: 'Test Connection',
+          btnSave: 'Save',
+          btnDelete: 'Delete',
+          emptyState: 'No providers added yet',
+          toastTesting: 'Testing connection...',
+          toastTestSuccess: 'Connection successful!',
+          toastTestFailed: 'Connection failed: ',
+          toastSaved: 'Saved',
+          toastDeleted: 'Deleted',
+          toastSelectType: 'Please select a provider type',
+          toastCreateFailed: 'Failed to create provider',
+          toastAdded: 'Provider added',
+          toastJsonError: 'Invalid JSON format or data',
+          toastExported: 'Exported',
+          toastLoaded: 'File loaded, click "Save to localStorage"',
+          confirmDelete: 'Are you sure you want to delete this provider?'
+        }
+      };
+
+      var lang = localStorage.getItem('lang') || 'zh-TW'
+      var expandedCards = {}
+
+      function t() {
+        return T[lang] || T['zh-TW']
+      }
+
+      // ========== 渲染静态文字 ==========
+
+      function renderStaticText() {
+        var tt = t()
+        document.getElementById('page-title').textContent = tt.title
+        document.title = tt.title
+        document.getElementById('addProviderBtn').textContent = tt.addProvider
+        document.getElementById('dialog-title').textContent = tt.dialogTitle
+        document.getElementById('label-type').textContent = tt.typeLabel
+        document.getElementById('label-name').textContent = tt.nameLabel
+        document.getElementById('providerName').placeholder = tt.namePlaceholder
+        document.getElementById('cancelAddBtn').textContent = tt.cancel
+        document.getElementById('confirmAddBtn').textContent = tt.confirm
+        document.getElementById('debug-title').textContent = tt.debugTitle
+        document.getElementById('debugSaveBtn').textContent = tt.debugSave
+        document.getElementById('debugExportBtn').textContent = tt.debugExport
+        document.getElementById('debugImportBtn').textContent = tt.debugImport
+        renderProviderTypeOptions()
+      }
+
+      function renderProviderTypeOptions() {
+        var select = document.getElementById('providerType')
+        var tt = t()
+        select.innerHTML = '<option value="">' + tt.selectPlaceholder + '</option>'
+        var types = window.getAllProviderTypes()
+        types.forEach(function(type) {
+          var option = document.createElement('option')
+          option.value = type.key
+          option.textContent = type.icon + ' ' + (type.label[lang] || type.label['zh-TW'])
+          select.appendChild(option)
+        })
+      }
+
+      // ========== 初始化 ==========
+
+      function init() {
+        lang = localStorage.getItem('lang') || 'zh-TW'
+        renderStaticText()
+        renderProviderList()
+        checkProxy()
+        setupDebugPanel()
+        setupDialog()
+      }
+
+      // ========== Proxy 狀態檢查 ==========
+
+      function checkProxy() {
+        var el = document.getElementById('proxyStatus')
+        var tt = t()
+        el.className = 'proxy-status checking'
+        el.innerHTML = '<span>⏳</span><span>' + tt.proxyChecking + '</span>'
+
+        ProviderManager.checkProxyStatus().then(function(connected) {
+          if (connected) {
+            el.className = 'proxy-status connected'
+            el.innerHTML = '<span>🟢</span><span>' + tt.proxyConnected + '</span>'
+          } else {
+            el.className = 'proxy-status disconnected'
+            el.innerHTML = '<span>🔴</span><span>' + tt.proxyDisconnected + '</span>'
+          }
+        })
+      }
+
+      // ========== 供應商列表渲染 ==========
+
+      function renderProviderList() {
+        var container = document.getElementById('providerList')
+        var providers = ProviderManager.getProviders()
+        var tt = t()
+
+        if (providers.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><div>' + tt.emptyState + '</div></div>'
+          return
+        }
+
+        container.innerHTML = providers.map(function(provider) {
+          return renderProviderCard(provider)
+        }).join('')
+
+        providers.forEach(function(provider) {
+          var card = document.getElementById('card-' + provider.id)
+          if (!card) return
+
+          var header = card.querySelector('.provider-card-header')
+          header.addEventListener('click', function() {
+            toggleCard(provider.id)
+          })
+
+          if (expandedCards[provider.id]) {
+            var testBtn = card.querySelector('.test-btn')
+            var saveBtn = card.querySelector('.save-btn')
+            var deleteBtn = card.querySelector('.delete-btn')
+
+            if (testBtn) testBtn.addEventListener('click', function() { testConnection(provider.id) })
+            if (saveBtn) saveBtn.addEventListener('click', function() { saveProviderSettings(provider.id) })
+            if (deleteBtn) deleteBtn.addEventListener('click', function() { deleteProvider(provider.id) })
+
+            card.querySelectorAll('input[data-field]').forEach(function(input) {
+              input.addEventListener('change', function() {
+                updateSettingsField(provider.id, input.dataset.field, input.value)
+              })
+            })
+          }
+        })
+
+        Object.keys(expandedCards).forEach(function(id) {
+          if (expandedCards[id]) {
+            var card = document.getElementById('card-' + id)
+            if (card) card.classList.add('expanded')
+          }
+        })
+      }
+
+      function renderProviderCard(provider) {
+        var providerType = window.getProviderType(provider.type)
+        var icon = providerType ? providerType.icon : '❓'
+        var typeLabel = window.getProviderLabel(provider.type, lang)
+        var statusClass = provider.status || 'unknown'
+        var tt = t()
+        var statusText = {}
+        statusText[tt.statusConnected] = 'connected'
+        statusText[tt.statusError] = 'error'
+        statusText[tt.statusUnknown] = 'unknown'
+        var statusLabel = statusClass === 'connected' ? tt.statusConnected : statusClass === 'error' ? tt.statusError : tt.statusUnknown
+        var isExpanded = expandedCards[provider.id] || false
+
+        var bodyContent = ''
+        if (providerType) {
+          bodyContent = providerType.fields.map(function(field) {
+            var value = provider.settings[field.key] || ''
+            var label = field.label[lang] || field.label['zh-TW'] || field.key
+            var inputType = field.type === 'password' ? 'password' : 'text'
+            return '<div class="form-group">' +
+              '<label>' + label + (field.required ? ' *' : '') + '</label>' +
+              '<input type="' + inputType + '" data-field="' + field.key + '" value="' + escapeHtml(value) + '">' +
+              '</div>'
+          }).join('')
+        }
+
+        return '<div class="provider-card' + (isExpanded ? ' expanded' : '') + '" id="card-' + provider.id + '">' +
+          '<div class="provider-card-header">' +
+            '<span class="provider-card-icon">' + icon + '</span>' +
+            '<span class="provider-card-name">' + escapeHtml(provider.name) + ' <small style="color:#6c757d">(' + typeLabel + ')</small></span>' +
+            '<span class="provider-card-status ' + statusClass + '">' + statusLabel + '</span>' +
+            '<span class="provider-card-toggle">' + (isExpanded ? tt.toggleCollapse : tt.toggleExpand) + '</span>' +
+          '</div>' +
+          '<div class="provider-card-body">' +
+            bodyContent +
+            '<div class="card-actions">' +
+              '<button class="btn btn-secondary btn-sm test-btn">' + tt.btnTest + '</button>' +
+              '<button class="btn btn-primary btn-sm save-btn">' + tt.btnSave + '</button>' +
+              '<button class="btn btn-danger btn-sm delete-btn">' + tt.btnDelete + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      }
+
+      function toggleCard(id) {
+        expandedCards[id] = !expandedCards[id]
+        var card = document.getElementById('card-' + id)
+        if (card) {
+          card.classList.toggle('expanded')
+          var toggle = card.querySelector('.provider-card-toggle')
+          if (toggle) {
+            toggle.textContent = expandedCards[id] ? t().toggleCollapse : t().toggleExpand
+          }
+        }
+      }
+
+      // ========== 供應商操作 ==========
+
+      function updateSettingsField(id, field, value) {
+        var provider = ProviderManager.getProviderById(id)
+        if (!provider) return
+        provider.settings[field] = value
+        ProviderManager.saveProvider(provider)
+      }
+
+      function testConnection(id) {
+        var provider = ProviderManager.getProviderById(id)
+        if (!provider) return
+        var tt = t()
+
+        showToast(tt.toastTesting, 'info')
+
+        ProviderManager.testConnection(provider).then(function(result) {
+          if (result.success) {
+            provider.status = 'connected'
+            provider.lastConnected = new Date().toISOString()
+            ProviderManager.saveProvider(provider)
+            showToast(tt.toastTestSuccess, 'success')
+          } else {
+            provider.status = 'error'
+            ProviderManager.saveProvider(provider)
+            showToast(tt.toastTestFailed + result.message, 'error')
+          }
+          renderProviderList()
+        })
+      }
+
+      function saveProviderSettings(id) {
+        var provider = ProviderManager.getProviderById(id)
+        if (!provider) return
+        var tt = t()
+
+        var validation = ProviderManager.validateProvider(provider)
+        if (!validation.valid) {
+          showToast(validation.errors[0].message, 'error')
+          return
+        }
+
+        ProviderManager.saveProvider(provider)
+        showToast(tt.toastSaved, 'success')
+      }
+
+      function deleteProvider(id) {
+        var tt = t()
+        if (!confirm(tt.confirmDelete)) return
+
+        ProviderManager.deleteProvider(id)
+        delete expandedCards[id]
+        renderProviderList()
+        showToast(tt.toastDeleted, 'success')
+      }
+
+      // ========== 新增供應商 Dialog ==========
+
+      function setupDialog() {
+        var dialog = document.getElementById('addDialog')
+        var typeSelect = document.getElementById('providerType')
+        var nameInput = document.getElementById('providerName')
+
+        document.getElementById('addProviderBtn').addEventListener('click', function() {
+          typeSelect.value = ''
+          nameInput.value = ''
+          dialog.classList.add('active')
+        })
+
+        document.getElementById('cancelAddBtn').addEventListener('click', function() {
+          dialog.classList.remove('active')
+        })
+
+        document.getElementById('confirmAddBtn').addEventListener('click', function() {
+          var type = typeSelect.value
+          var name = nameInput.value.trim()
+          var tt = t()
+
+          if (!type) {
+            showToast(tt.toastSelectType, 'error')
+            return
+          }
+
+          var provider = ProviderManager.createNewProvider(type, name)
+          if (!provider) {
+            showToast(tt.toastCreateFailed, 'error')
+            return
+          }
+
+          ProviderManager.saveProvider(provider)
+          expandedCards[provider.id] = true
+          renderProviderList()
+          dialog.classList.remove('active')
+          showToast(tt.toastAdded, 'success')
+        })
+
+        dialog.addEventListener('click', function(e) {
+          if (e.target === dialog) {
+            dialog.classList.remove('active')
+          }
+        })
+      }
+
+      // ========== Debug Panel ==========
+
+      function setupDebugPanel() {
+        var params = new URLSearchParams(window.location.search)
+        var debugEnabled = params.get('setting_debug') === 'true'
+
+        var panel = document.getElementById('debugPanel')
+        if (debugEnabled) {
+          panel.classList.add('active')
+          refreshDebugJson()
+        }
+
+        document.getElementById('debugSaveBtn').addEventListener('click', function() {
+          var json = document.getElementById('debugJson').value
+          var tt = t()
+          if (ProviderManager.importData(json)) {
+            showToast(tt.toastSaved, 'success')
+            renderProviderList()
+            refreshDebugJson()
+          } else {
+            showToast(tt.toastJsonError, 'error')
+          }
+        })
+
+        document.getElementById('debugExportBtn').addEventListener('click', function() {
+          var json = ProviderManager.exportData()
+          var blob = new Blob([json], { type: 'application/json' })
+          var url = URL.createObjectURL(blob)
+          var a = document.createElement('a')
+          a.href = url
+          a.download = 'ai-providers-' + new Date().toISOString().slice(0, 10) + '.json'
+          a.click()
+          URL.revokeObjectURL(url)
+          showToast(t().toastExported, 'success')
+        })
+
+        document.getElementById('debugImportBtn').addEventListener('click', function() {
+          document.getElementById('debugImportFile').click()
+        })
+
+        document.getElementById('debugImportFile').addEventListener('change', function(e) {
+          var file = e.target.files[0]
+          if (!file) return
+
+          var reader = new FileReader()
+          reader.onload = function(ev) {
+            document.getElementById('debugJson').value = ev.target.result
+            showToast(t().toastLoaded, 'info')
+          }
+          reader.readAsText(file)
+          e.target.value = ''
+        })
+      }
+
+      function refreshDebugJson() {
+        document.getElementById('debugJson').value = ProviderManager.exportData()
+      }
+
+      // ========== 工具函式 ==========
+
+      function escapeHtml(text) {
+        var div = document.createElement('div')
+        div.textContent = text
+        return div.innerHTML
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div')
+        toast.className = 'toast ' + (type || 'info')
+        toast.textContent = message
+        document.body.appendChild(toast)
+        setTimeout(function() { toast.remove() }, 3000)
+      }
+
+      // ========== 語言切換 ==========
+
+      MenuAPI.onLanguageChange(function(newLang) {
+        lang = newLang
+        I18n.switchTo(newLang)
+        renderStaticText()
+        renderProviderList()
+        checkProxy()
+      })
+
+      // ========== 啟動 ==========
+
+      document.addEventListener('DOMContentLoaded', init)
+    })()
+  </script>
+</body>
+</html>

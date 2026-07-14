@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>模型瀏覽器</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body {
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+    }
+
+    .header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .header-row h1 { margin: 0; font-size: 24px; }
+    .header-row select { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; background: var(--color-surface); color: var(--color-text); }
+    .header-row .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .btn-primary { background: var(--color-primary); color: white; }
+    .btn-primary:hover { background: var(--color-primary-hover); }
+    .btn-secondary { background: var(--color-text-secondary); color: white; }
+    .btn-secondary:hover { opacity: 0.9; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-success:hover { background: #218838; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .main-container { display: flex; gap: 20px; }
+    .model-list-panel { flex: 0 0 300px; }
+    .model-detail-panel { flex: 1; min-width: 0; }
+
+    .panel { border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface); }
+    .panel-header { padding: 12px 16px; background: var(--color-menu-hover); border-bottom: 1px solid var(--color-border); font-weight: 600; }
+    .panel-body { padding: 16px; }
+
+    .model-list { list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto; }
+    .model-list li { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--color-border); transition: background 0.2s; }
+    .model-list li:hover { background: var(--color-menu-hover); }
+    .model-list li.active { background: var(--color-menu-active); border-left: 3px solid var(--color-primary); }
+    .model-list li:last-child { border-bottom: none; }
+
+    .model-properties { }
+    .model-title { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .model-title .icon { font-size: 28px; }
+    .model-title .name { font-size: 18px; font-weight: 600; }
+    .model-title .subtitle { color: var(--color-text-secondary); font-size: 14px; }
+
+    .property-table { width: 100%; border-collapse: collapse; }
+    .property-table td { padding: 8px 12px; border-bottom: 1px solid var(--color-border); }
+    .property-table td:first-child { font-weight: 500; color: var(--color-text-secondary); width: 40%; }
+    .property-table td:last-child { color: var(--color-text); }
+
+    .chat-test { margin-top: 20px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; display: none; }
+    .chat-test.active { display: block; }
+    .chat-header { display: flex; align-items: center; padding: 12px 16px; background: var(--color-menu-hover); border-bottom: 1px solid var(--color-border); }
+    .chat-header .title { flex: 1; font-weight: 600; }
+    .chat-messages { height: 300px; overflow-y: auto; padding: 16px; background: var(--color-surface); }
+    .chat-message { margin-bottom: 12px; display: flex; gap: 8px; }
+    .chat-message.user { justify-content: flex-end; }
+    .chat-message .bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.4; }
+    .chat-message.user .bubble { background: var(--color-primary); color: white; border-bottom-right-radius: 4px; }
+    .chat-message.assistant .bubble { background: var(--color-menu-hover); color: var(--color-text); border-bottom-left-radius: 4px; }
+    .chat-input { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--color-border); background: var(--color-menu-hover); }
+    .chat-input input { flex: 1; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; background: var(--color-surface); color: var(--color-text); }
+    .chat-input input:focus { outline: none; border-color: var(--color-primary); }
+
+    .empty-state { text-align: center; padding: 40px; color: var(--color-text-secondary); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    .loading { text-align: center; padding: 20px; color: var(--color-text-secondary); }
+
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; z-index: 2000; animation: slideIn 0.3s ease; }
+    .toast.success { background: #28a745; }
+    .toast.error { background: #dc3545; }
+    .toast.info { background: #17a2b8; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    @media (max-width: 768px) {
+      .main-container { flex-direction: column; }
+      .model-list-panel { flex: none; }
+      .model-list { max-height: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header-row">
+    <h1 id="page-title"></h1>
+    <select id="providerSelect">
+    </select>
+    <button class="btn btn-primary" id="fetchModelsBtn"></button>
+  </div>
+
+  <div class="main-container">
+    <div class="model-list-panel">
+      <div class="panel">
+        <div class="panel-header" id="list-header"></div>
+        <div class="panel-body">
+          <div id="modelListContent">
+            <div class="empty-state">
+              <div class="icon">📋</div>
+              <div id="list-empty"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="model-detail-panel">
+      <div class="panel">
+        <div class="panel-header" id="detail-header"></div>
+        <div class="panel-body">
+          <div id="modelDetailContent">
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <div id="detail-empty"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-test" id="chatTest">
+        <div class="chat-header">
+          <span class="title" id="chatModelTitle"></span>
+          <button class="btn btn-secondary btn-sm" id="closeChatBtn"></button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" disabled>
+          <button class="btn btn-primary btn-sm" id="sendChatBtn" disabled></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/iframe-client.js"></script>
+  <script src="../config/provider-types.js"></script>
+  <script src="../lib/provider-manager.js"></script>
+  <script>
+    (function() {
+      'use strict'
+
+      var T = {
+        'zh-TW': {
+          title: '模型瀏覽器',
+          selectPlaceholder: '-- 選擇供應商 --',
+          fetchModels: '查詢模型',
+          listHeader: '模型列表',
+          listEmpty: '請先選擇供應商並查詢模型',
+          detailHeader: '模型屬性',
+          detailEmpty: '請從左側列表選擇一個模型',
+          chatTitle: '聊天測試',
+          closeChat: '收合',
+          chatPlaceholder: '輸入訊息...',
+          send: '送出',
+          useModel: '使用此模型',
+          thinking: '⏳ 思考中...',
+          unknownModel: '未知模型',
+          toastSelectProvider: '請先選擇供應商',
+          toastProviderNotFound: '找不到供應商設定',
+          toastQueryFailed: '查詢失敗：',
+          toastNoModels: '此供應商無可用模型',
+          toastError: '❌ 錯誤：',
+          unknownError: '未知錯誤'
+        },
+        'en': {
+          title: 'Model Browser',
+          selectPlaceholder: '-- Select Provider --',
+          fetchModels: 'Fetch Models',
+          listHeader: 'Model List',
+          listEmpty: 'Select a provider and fetch models first',
+          detailHeader: 'Model Properties',
+          detailEmpty: 'Select a model from the list',
+          chatTitle: 'Chat Test',
+          closeChat: 'Collapse',
+          chatPlaceholder: 'Type a message...',
+          send: 'Send',
+          useModel: 'Use this model',
+          thinking: '⏳ Thinking...',
+          unknownModel: 'unknown model',
+          toastSelectProvider: 'Please select a provider',
+          toastProviderNotFound: 'Provider settings not found',
+          toastQueryFailed: 'Query failed: ',
+          toastNoModels: 'No models available for this provider',
+          toastError: '❌ Error: ',
+          unknownError: 'unknown error'
+        }
+      };
+
+      var lang = localStorage.getItem('lang') || 'zh-TW'
+      var currentProvider = null
+      var currentModels = []
+      var selectedModel = null
+      var chatHistory = []
+
+      function t() {
+        return T[lang] || T['zh-TW']
+      }
+
+      // ========== 渲染静态文字 ==========
+
+      function renderStaticText() {
+        var tt = t()
+        document.getElementById('page-title').textContent = tt.title
+        document.title = tt.title
+        document.getElementById('fetchModelsBtn').textContent = tt.fetchModels
+        document.getElementById('list-header').textContent = tt.listHeader
+        document.getElementById('list-empty').textContent = tt.listEmpty
+        document.getElementById('detail-header').textContent = tt.detailHeader
+        document.getElementById('detail-empty').textContent = tt.detailEmpty
+        document.getElementById('closeChatBtn').textContent = tt.closeChat
+        document.getElementById('chatInput').placeholder = tt.chatPlaceholder
+        document.getElementById('sendChatBtn').textContent = tt.send
+        renderProviderOptions()
+      }
+
+      function renderProviderOptions() {
+        var select = document.getElementById('providerSelect')
+        var tt = t()
+        select.innerHTML = '<option value="">' + tt.selectPlaceholder + '</option>'
+        var providers = ProviderManager.getProviders()
+
+        providers.forEach(function(provider) {
+          var providerType = window.getProviderType(provider.type)
+          var icon = providerType ? providerType.icon : '❓'
+          var option = document.createElement('option')
+          option.value = provider.id
+          option.textContent = icon + ' ' + provider.name
+          select.appendChild(option)
+        })
+      }
+
+      // ========== 初始化 ==========
+
+      function init() {
+        lang = localStorage.getItem('lang') || 'zh-TW'
+        renderStaticText()
+        setupEventListeners()
+      }
+
+      function setupEventListeners() {
+        document.getElementById('fetchModelsBtn').addEventListener('click', fetchModels)
+        document.getElementById('closeChatBtn').addEventListener('click', closeChatTest)
+        document.getElementById('sendChatBtn').addEventListener('click', sendChatMessage)
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') sendChatMessage()
+        })
+      }
+
+      // ========== 查詢模型 ==========
+
+      function fetchModels() {
+        var providerId = document.getElementById('providerSelect').value
+        var tt = t()
+        if (!providerId) {
+          showToast(tt.toastSelectProvider, 'error')
+          return
+        }
+
+        currentProvider = ProviderManager.getProviderById(providerId)
+        if (!currentProvider) {
+          showToast(tt.toastProviderNotFound, 'error')
+          return
+        }
+
+        var content = document.getElementById('modelListContent')
+        content.innerHTML = '<div class="loading">⏳ ' + tt.fetchModels + '...</div>'
+
+        ProviderManager.fetchModels(currentProvider).then(function(result) {
+          if (result.success) {
+            currentModels = result.models
+            renderModelList()
+          } else {
+            content.innerHTML = '<div class="empty-state"><div class="icon">❌</div><div>' + tt.toastQueryFailed + escapeHtml(result.error) + '</div></div>'
+          }
+        })
+      }
+
+      function renderModelList() {
+        var content = document.getElementById('modelListContent')
+        var tt = t()
+
+        if (currentModels.length === 0) {
+          content.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>' + tt.toastNoModels + '</div></div>'
+          return
+        }
+
+        var ul = document.createElement('ul')
+        ul.className = 'model-list'
+
+        currentModels.forEach(function(model) {
+          var li = document.createElement('li')
+          li.textContent = model.id || model.name || JSON.stringify(model)
+          li.dataset.modelId = model.id || model.name
+          li.addEventListener('click', function() { selectModel(model) })
+          ul.appendChild(li)
+        })
+
+        content.innerHTML = ''
+        content.appendChild(ul)
+      }
+
+      function selectModel(model) {
+        selectedModel = model
+
+        document.querySelectorAll('.model-list li').forEach(function(li) {
+          li.classList.toggle('active', li.dataset.modelId === (model.id || model.name))
+        })
+
+        renderModelDetail()
+      }
+
+      function renderModelDetail() {
+        var content = document.getElementById('modelDetailContent')
+        var providerType = window.getProviderType(currentProvider.type)
+        var icon = providerType ? providerType.icon : '❓'
+        var typeLabel = window.getProviderLabel(currentProvider.type, lang)
+        var tt = t()
+
+        var propertiesHtml = ''
+        Object.entries(selectedModel).forEach(function([key, value]) {
+          var displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+          propertiesHtml += '<tr><td>' + escapeHtml(key) + '</td><td>' + escapeHtml(displayValue) + '</td></tr>'
+        })
+
+        content.innerHTML =
+          '<div class="model-properties">' +
+            '<div class="model-title">' +
+              '<span class="icon">' + icon + '</span>' +
+              '<div>' +
+                '<div class="name">' + escapeHtml(selectedModel.id || selectedModel.name || tt.unknownModel) + '</div>' +
+                '<div class="subtitle">' + escapeHtml(typeLabel) + ' · ' + escapeHtml(selectedModel.owned_by || currentProvider.name) + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<table class="property-table">' +
+              propertiesHtml +
+            '</table>' +
+            '<div style="margin-top: 16px;">' +
+              '<button class="btn btn-success" id="useModelBtn">' + tt.useModel + '</button>' +
+            '</div>' +
+          '</div>'
+
+        document.getElementById('useModelBtn').addEventListener('click', openChatTest)
+      }
+
+      // ========== 聊天測試 ==========
+
+      function openChatTest() {
+        if (!selectedModel || !currentProvider) return
+        var tt = t()
+
+        var chatTest = document.getElementById('chatTest')
+        chatTest.classList.add('active')
+
+        var modelId = selectedModel.id || selectedModel.name || tt.unknownModel
+        document.getElementById('chatModelTitle').textContent = '🤖 ' + modelId + ' ' + tt.chatTitle
+
+        chatHistory = []
+        document.getElementById('chatMessages').innerHTML = ''
+
+        document.getElementById('chatInput').disabled = false
+        document.getElementById('sendChatBtn').disabled = false
+        document.getElementById('chatInput').focus()
+      }
+
+      function closeChatTest() {
+        document.getElementById('chatTest').classList.remove('active')
+      }
+
+      function sendChatMessage() {
+        var input = document.getElementById('chatInput')
+        var message = input.value.trim()
+        if (!message) return
+        var tt = t()
+
+        input.value = ''
+        input.disabled = true
+        document.getElementById('sendChatBtn').disabled = true
+
+        appendChatMessage('user', message)
+        chatHistory.push({ role: 'user', content: message })
+
+        var loadingId = appendChatMessage('assistant', tt.thinking, true)
+
+        ProviderManager.chatCompletion(currentProvider, chatHistory, {
+          model: selectedModel.id || selectedModel.name
+        }).then(function(result) {
+          removeChatMessage(loadingId)
+
+          if (result.success && result.data.choices && result.data.choices.length > 0) {
+            var reply = result.data.choices[0].message.content
+            appendChatMessage('assistant', reply)
+            chatHistory.push({ role: 'assistant', content: reply })
+          } else {
+            appendChatMessage('assistant', tt.toastError + (result.error || tt.unknownError))
+          }
+
+          input.disabled = false
+          document.getElementById('sendChatBtn').disabled = false
+          input.focus()
+        })
+      }
+
+      function appendChatMessage(role, content, isLoading) {
+        var container = document.getElementById('chatMessages')
+        var id = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5)
+
+        var div = document.createElement('div')
+        div.className = 'chat-message ' + role
+        div.id = id
+        div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>'
+
+        container.appendChild(div)
+        container.scrollTop = container.scrollHeight
+
+        return id
+      }
+
+      function removeChatMessage(id) {
+        var el = document.getElementById(id)
+        if (el) el.remove()
+      }
+
+      // ========== 工具函式 ==========
+
+      function escapeHtml(text) {
+        var div = document.createElement('div')
+        div.textContent = text
+        return div.innerHTML
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div')
+        toast.className = 'toast ' + (type || 'info')
+        toast.textContent = message
+        document.body.appendChild(toast)
+        setTimeout(function() { toast.remove() }, 3000)
+      }
+
+      // ========== 語言切換 ==========
+
+      MenuAPI.onLanguageChange(function(newLang) {
+        lang = newLang
+        I18n.switchTo(newLang)
+        renderStaticText()
+        if (currentProvider) {
+          renderModelList()
+          if (selectedModel) renderModelDetail()
+        }
+      })
+
+      // ========== 啟動 ==========
+
+      document.addEventListener('DOMContentLoaded', init)
+    })()
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Menu System</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <div class="body-area">
+    <nav class="menu-panel" id="menu-panel"></nav>
+    <main class="content-area">
+      <div class="spinner-overlay hidden" id="spinner-overlay">
+        <div class="spinner"></div>
+      </div>
+      <div class="error-overlay hidden" id="error-overlay">
+        <div class="error-icon">⚠️</div>
+        <div class="error-text">載入頁面時發生錯誤</div>
+      </div>
+      <iframe class="content-frame" id="content-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+    </main>
+  </div>
+  <footer class="footer" id="footer"></footer>
+
+  <script src="config/menu.js"></script>
+  <script src="config/header.js"></script>
+  <script src="config/footer.js"></script>
+  <script src="lib/i18n.js"></script>
+  <script src="lib/theme.js"></script>
+  <script src="lib/messenger.js"></script>
+  <script src="components/menu.js"></script>
+  <script src="components/header.js"></script>
+  <script src="components/content.js"></script>
+  <script src="components/footer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

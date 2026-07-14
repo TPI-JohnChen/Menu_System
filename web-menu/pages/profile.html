@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>個人設定</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body {
+      padding: 32px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+      margin: 0;
+    }
+    h1 { margin-bottom: 16px; font-size: 24px; }
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; }
+    .field input {
+      width: 100%; max-width: 320px; padding: 8px 12px;
+      border: 1px solid var(--color-border); border-radius: 6px;
+      font-size: 14px; background: var(--color-bg); color: var(--color-text);
+    }
+    button {
+      padding: 8px 16px;
+      background: var(--color-primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: var(--color-primary-hover); }
+  </style>
+</head>
+<body>
+  <h1 id="page-title"></h1>
+  <div class="card">
+    <div class="field">
+      <label id="label-name"></label>
+      <input type="text" value="John">
+    </div>
+    <div class="field">
+      <label id="label-email"></label>
+      <input type="email" value="john@example.com">
+    </div>
+    <button id="btn-back"></button>
+  </div>
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/iframe-client.js"></script>
+  <script>
+    var T = {
+      'zh-TW': {
+        title: '個人設定',
+        name: '姓名',
+        email: '電子郵件',
+        back: '返回總覽'
+      },
+      'en': {
+        title: 'Profile',
+        name: 'Name',
+        email: 'Email',
+        back: 'Back to Overview'
+      }
+    };
+
+    function renderPage() {
+      var lang = I18n.currentLang;
+      var t = T[lang] || T['zh-TW'];
+      document.getElementById('page-title').textContent = t.title;
+      document.title = t.title;
+      document.getElementById('label-name').textContent = t.name;
+      document.getElementById('label-email').textContent = t.email;
+      document.getElementById('btn-back').textContent = t.back;
+    }
+
+    I18n.init(localStorage.getItem('menu-lang') || 'zh-TW');
+    renderPage();
+
+    MenuAPI.onLanguageChange(function(lang) {
+      I18n.switchTo(lang);
+      renderPage();
+    });
+
+    document.getElementById('btn-back').addEventListener('click', function() {
+      MenuAPI.navigate('overview');
+    });
+  </script>
+</body>
+</html>
