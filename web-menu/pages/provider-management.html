@@ -32,6 +32,12 @@
     .btn-success:hover { background: #218838; }
     .btn-sm { padding: 4px 8px; font-size: 12px; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:active { transform: scale(0.96); }
+    .btn-primary:active { background: #0d47a1; }
+    .btn-danger:active { background: #b71c1c; }
+    .btn-success:active { background: #1b5e20; }
+    .btn-secondary:active { opacity: 0.7; }
+    .btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
     .provider-card { border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; background: var(--color-surface); }
     .provider-card-header { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; user-select: none; }
@@ -107,6 +113,16 @@
       <div class="dialog-actions">
         <button class="btn btn-secondary" id="cancelAddBtn"></button>
         <button class="btn btn-primary" id="confirmAddBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="confirmDialog">
+    <div class="dialog">
+      <p id="confirmMessage"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="confirmCancelBtn"></button>
+        <button class="btn btn-danger" id="confirmOkBtn"></button>
       </div>
     </div>
   </div>
@@ -260,6 +276,7 @@
         checkProxy()
         setupDebugPanel()
         setupDialog()
+        setupEventDelegation()
       }
 
       // ========== Proxy 狀態檢查 ==========
@@ -296,32 +313,6 @@
         container.innerHTML = providers.map(function(provider) {
           return renderProviderCard(provider)
         }).join('')
-
-        providers.forEach(function(provider) {
-          var card = document.getElementById('card-' + provider.id)
-          if (!card) return
-
-          var header = card.querySelector('.provider-card-header')
-          header.addEventListener('click', function() {
-            toggleCard(provider.id)
-          })
-
-          if (expandedCards[provider.id]) {
-            var testBtn = card.querySelector('.test-btn')
-            var saveBtn = card.querySelector('.save-btn')
-            var deleteBtn = card.querySelector('.delete-btn')
-
-            if (testBtn) testBtn.addEventListener('click', function() { testConnection(provider.id) })
-            if (saveBtn) saveBtn.addEventListener('click', function() { saveProviderSettings(provider.id) })
-            if (deleteBtn) deleteBtn.addEventListener('click', function() { deleteProvider(provider.id) })
-
-            card.querySelectorAll('input[data-field]').forEach(function(input) {
-              input.addEventListener('change', function() {
-                updateSettingsField(provider.id, input.dataset.field, input.value)
-              })
-            })
-          }
-        })
 
         Object.keys(expandedCards).forEach(function(id) {
           if (expandedCards[id]) {
@@ -433,9 +424,10 @@
         showToast(tt.toastSaved, 'success')
       }
 
-      function deleteProvider(id) {
+      async function deleteProvider(id) {
         var tt = t()
-        if (!confirm(tt.confirmDelete)) return
+        var confirmed = await showConfirm(tt.confirmDelete)
+        if (!confirmed) return
 
         ProviderManager.deleteProvider(id)
         delete expandedCards[id]
@@ -487,6 +479,31 @@
           if (e.target === dialog) {
             dialog.classList.remove('active')
           }
+        })
+      }
+
+      function setupEventDelegation() {
+        document.getElementById('providerList').addEventListener('click', function(e) {
+          var target = e.target.closest('button, .provider-card-header')
+          if (!target) return
+
+          var card = target.closest('.provider-card')
+          if (!card) return
+          var id = card.id.replace('card-', '')
+
+          if (target.classList.contains('test-btn')) { testConnection(id) }
+          else if (target.classList.contains('save-btn')) { saveProviderSettings(id) }
+          else if (target.classList.contains('delete-btn')) { deleteProvider(id) }
+          else if (target.classList.contains('provider-card-header')) { toggleCard(id) }
+        })
+
+        document.getElementById('providerList').addEventListener('change', function(e) {
+          var input = e.target.closest('input[data-field]')
+          if (!input) return
+          var card = input.closest('.provider-card')
+          if (!card) return
+          var id = card.id.replace('card-', '')
+          updateSettingsField(id, input.dataset.field, input.value)
         })
       }
 
@@ -562,6 +579,37 @@
         toast.textContent = message
         document.body.appendChild(toast)
         setTimeout(function() { toast.remove() }, 3000)
+      }
+
+      function showConfirm(message) {
+        return new Promise(function(resolve) {
+          var dialog = document.getElementById('confirmDialog')
+          var msg = document.getElementById('confirmMessage')
+          var okBtn = document.getElementById('confirmOkBtn')
+          var cancelBtn = document.getElementById('confirmCancelBtn')
+          var tt = t()
+
+          msg.textContent = message
+          okBtn.textContent = tt.confirmDelete
+          cancelBtn.textContent = tt.cancel
+          dialog.classList.add('active')
+
+          function close(result) {
+            dialog.classList.remove('active')
+            okBtn.removeEventListener('click', onOk)
+            cancelBtn.removeEventListener('click', onCancel)
+            dialog.removeEventListener('click', onOverlay)
+            resolve(result)
+          }
+
+          function onOk() { close(true) }
+          function onCancel() { close(false) }
+          function onOverlay(e) { if (e.target === dialog) close(false) }
+
+          okBtn.addEventListener('click', onOk)
+          cancelBtn.addEventListener('click', onCancel)
+          dialog.addEventListener('click', onOverlay)
+        })
       }
 
       // ========== 語言切換 ==========

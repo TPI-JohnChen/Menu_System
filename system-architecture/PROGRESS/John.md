@@ -85,3 +85,34 @@
 - Ollama 模型查詢
 - LM Studio 模型查詢
 - 聊天補全（全部供應商）
+
+---
+
+## 2026-07-15（Ollama 聊天測試 502 修復 + 串流支援）
+
+### 問題來源
+- `第五問.md`：模型瀏覽器對 Ollama 供應商（`GB10--63`, `gemma4:e4b`）聊天測試回傳 502 Bad Gateway
+
+### 完成項目
+- 建立設計文件：`docs/superpowers/specs/2026-07-15-ollama-chat-streaming-design.md`
+- 建立實作計畫：`docs/superpowers/specs/2026-07-15-ollama-chat-streaming-tasks.md`
+- 修復 Ollama 聊天 502（根因：`chatOllama()` 未帶 `stream: false`，Ollama 預設回傳 NDJSON 多行 JSON，`response.json()` 解析失敗）
+- 依使用者要求，改為保留串流體感：新增 `chatOllamaStream()` 以 SSE 逐段轉發，前端逐字顯示回覆（而非關閉串流一次性回應）
+- 修正 `node-fetch` 的 `response.body` 為 Node.js Readable stream（非 Web ReadableStream）、無 `getReader()` 的相容性問題，改用 `for await...of` 讀取
+
+### 檔案異動
+- `ai-proxy/server.js`：新增 `chatOllamaStream()`，`/api/providers/:type/chat` 路由對 `ollama` 分流走 SSE
+- `web-menu/lib/provider-manager.js`：`chatCompletion()` 新增 `onDelta` callback，新增 `consumeChatStream()`
+- `web-menu/pages/model-browser.html`：`sendChatMessage()` 改用串流逐字更新，新增 `setChatMessageContent()`
+
+### 決策記錄
+- 串流支援範圍僅限 Ollama；其餘供應商（OpenAI/Google/LM Studio/Anthropic/OpenAI Compatible）維持一次性 JSON 回應，未變動
+- 原非串流版 `chatOllama()` 保留不刪除，供 `chatCompletionByType` 其他情境使用
+
+### 流程檢討
+- 本次處理過程中未完整依 `/full-plan` 四階段流程走（直接用 Claude Code 內建 plan-mode 出計畫並動手改code），design/tasks 文件與本進度記錄都是事後補寫。下次呼叫 `/full-plan` 應嚴格依 Phase 0→0.5→1→2→3 執行，並在完成後主動更新 `PROGRESS/$DEV_NAME.md` 與詢問是否更新 `ROADMAP.md`。
+
+### 已知待測試功能
+- Ollama 模型查詢
+- LM Studio 模型查詢
+- 聊天補全（OpenAI / Google / LM Studio / Anthropic / OpenAI Compatible，尚未逐一實測）

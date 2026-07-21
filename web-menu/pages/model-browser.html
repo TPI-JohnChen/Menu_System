@@ -382,17 +382,25 @@
         chatHistory.push({ role: 'user', content: message })
 
         var loadingId = appendChatMessage('assistant', tt.thinking, true)
+        var streamedContent = ''
+        var receivedDelta = false
 
         ProviderManager.chatCompletion(currentProvider, chatHistory, {
           model: selectedModel.id || selectedModel.name
+        }, function(delta) {
+          if (!receivedDelta) {
+            streamedContent = ''
+            receivedDelta = true
+          }
+          streamedContent += delta
+          setChatMessageContent(loadingId, streamedContent)
         }).then(function(result) {
-          removeChatMessage(loadingId)
-
           if (result.success && result.data.choices && result.data.choices.length > 0) {
-            var reply = result.data.choices[0].message.content
-            appendChatMessage('assistant', reply)
+            var reply = result.data.choices[0].message.content || streamedContent
+            setChatMessageContent(loadingId, reply)
             chatHistory.push({ role: 'assistant', content: reply })
           } else {
+            removeChatMessage(loadingId)
             appendChatMessage('assistant', tt.toastError + (result.error || tt.unknownError))
           }
 
@@ -420,6 +428,15 @@
       function removeChatMessage(id) {
         var el = document.getElementById(id)
         if (el) el.remove()
+      }
+
+      function setChatMessageContent(id, content) {
+        var el = document.getElementById(id)
+        if (!el) return
+        var bubble = el.querySelector('.bubble')
+        if (bubble) bubble.innerHTML = escapeHtml(content)
+        var container = document.getElementById('chatMessages')
+        container.scrollTop = container.scrollHeight
       }
 
       // ========== 工具函式 ==========

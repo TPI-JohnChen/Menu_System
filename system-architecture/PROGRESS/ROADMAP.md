@@ -26,8 +26,16 @@
 | 供應商類型定義表 | ✅ Completed | v2.0 |
 | provider-manager.js 共用邏輯 | ✅ Completed | v2.0 |
 
+## v2.1 — Bug 修復與體驗優化
+
+| Feature | Status | Notes |
+|---|---|---|
+| 供應商管理頁面按鈕修復（B1/B2/B3） | ✅ Completed | 2026-07-14，自製 Confirm Modal + 事件委派 + CSS 反饋 |
+| Ollama 聊天測試 502 修復 + 串流支援 | ✅ Completed | 2026-07-15，SSE 逐字顯示，僅 Ollama；其餘供應商聊天補全仍待逐一實測 |
+
 ## 下一階段（v3 候選）
 - tokenRefreshed 通訊實作
 - 通知列表彈窗
 - 更多內部頁面
 - Anthropic 模型查詢（目前不支援）
+- 其餘供應商（OpenAI/Google/LM Studio/Anthropic/OpenAI Compatible）聊天串流支援（目前僅 Ollama）

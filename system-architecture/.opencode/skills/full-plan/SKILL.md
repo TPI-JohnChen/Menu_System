@@ -40,7 +40,7 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
      ```
    - Ask: "Does this topology look correct for this task?"
 
-3. **Load CLAUDE.md or CONTEXT.md** (use Read tool)
+3. **Load CLAUDE.md or AGENTS.md or CONTEXT.md or PLAN_AGENTS.md** (use Read tool)
    - Internalize responsibility boundaries:
      - What each service OWNS and DOES NOT OWN
      - Which services may contain business logic and which may not

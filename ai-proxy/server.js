@@ -72,6 +72,22 @@ app.post('/api/providers/:type/chat', async (req, res) => {
     return res.status(400).json({ error: '缺少 messages 陣列' })
   }
 
+  // Ollama 走 SSE 串流，逐 token 回傳給前端
+  if (type === 'ollama') {
+    try {
+      await chatOllamaStream({ baseUrl, model, messages, temperature }, res)
+    } catch (error) {
+      console.error(`[Chat] ollama 聊天失敗:`, error.message)
+      if (!res.headersSent) {
+        res.status(502).json({ error: '聊天補全失敗', details: error.message })
+      } else {
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`)
+        res.end()
+      }
+    }
+    return
+  }
+
   try {
     const result = await chatCompletionByType(type, {
       baseUrl,
@@ -317,7 +333,7 @@ async function chatOpenAI(options) {
 async function chatOllama(options) {
   const { baseUrl, model, messages, temperature } = options
 
-  const body = { model, messages }
+  const body = { model, messages, stream: false }
   if (temperature !== undefined) body.options = { temperature }
 
   const response = await fetch(`${baseUrl}/api/chat`, {
@@ -346,6 +362,64 @@ async function chatOllama(options) {
       total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0)
     }
   }
+}
+
+// Ollama 串流版：以 SSE 逐段回傳 delta，讓前端可以逐字顯示
+async function chatOllamaStream(options, res) {
+  const { baseUrl, model, messages, temperature } = options
+
+  const body = { model, messages, stream: true }
+  if (temperature !== undefined) body.options = { temperature }
+
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '')
+    throw new Error(text || `HTTP ${response.status}`)
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  if (res.flushHeaders) res.flushHeaders()
+
+  let buffer = ''
+  let promptTokens = 0
+  let completionTokens = 0
+
+  // node-fetch 的 response.body 是 Node.js Readable stream，沒有 getReader()，
+  // 改用 async iterator 逐塊讀取
+  for await (const value of response.body) {
+    buffer += value.toString('utf8')
+    const lines = buffer.split('\n')
+    buffer = lines.pop()
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+      const chunk = JSON.parse(line)
+      if (chunk.message && chunk.message.content) {
+        res.write(`data: ${JSON.stringify({ delta: chunk.message.content })}\n\n`)
+      }
+      if (chunk.done) {
+        promptTokens = chunk.prompt_eval_count || 0
+        completionTokens = chunk.eval_count || 0
+      }
+    }
+  }
+
+  res.write(`data: ${JSON.stringify({
+    done: true,
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: promptTokens + completionTokens
+    }
+  })}\n\n`)
+  res.end()
 }
 
 async function chatGoogle(options) {

@@ -196,7 +196,45 @@
     }
   }
 
-  async function chatCompletion(provider, messages, options) {
+  async function consumeChatStream(response, onDelta) {
+    var reader = response.body.getReader()
+    var decoder = new TextDecoder()
+    var buffer = ''
+    var fullContent = ''
+    var usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+
+    while (true) {
+      var result = await reader.read()
+      if (result.done) break
+
+      buffer += decoder.decode(result.value, { stream: true })
+      var events = buffer.split('\n\n')
+      buffer = events.pop()
+
+      for (var i = 0; i < events.length; i++) {
+        var line = events[i]
+        if (line.indexOf('data: ') !== 0) continue
+        var evt = JSON.parse(line.slice(6))
+
+        if (evt.error) throw new Error(evt.error)
+        if (evt.delta) {
+          fullContent += evt.delta
+          if (onDelta) onDelta(evt.delta)
+        }
+        if (evt.usage) usage = evt.usage
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        choices: [{ message: { role: 'assistant', content: fullContent } }],
+        usage: usage
+      }
+    }
+  }
+
+  async function chatCompletion(provider, messages, options, onDelta) {
     options = options || {}
 
     try {
@@ -212,6 +250,11 @@
           max_tokens: options.max_tokens
         })
       })
+
+      var contentType = response.headers.get('content-type') || ''
+      if (contentType.indexOf('text/event-stream') !== -1) {
+        return await consumeChatStream(response, onDelta)
+      }
 
       const data = await response.json()
 

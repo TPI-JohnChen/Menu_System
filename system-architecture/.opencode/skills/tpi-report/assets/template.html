@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>報告標題 | TPI SOFTWARE</title>
+<style>
+/* ============================================================
+   TPI 風格報告樣板
+   - 白底紫字 sticky 標頭 + 左側 sidebar TOC
+   - 閱讀進度條 + Go-to-Top 按鈕
+   - RWD：900px 以下 sidebar 收合為水平列表
+   ============================================================ */
+
+:root {
+    /* TPI 官方配色 - 網頁主色 */
+    --primary: #662E8D;           /* Web_P1000 - 主要紫色 */
+    --gray: #8D98B1;              /* Web_G1000 - 灰色 */
+    --dark: #01003B;              /* Web_B1000 - 深藍/黑色 */
+
+    /* TPI 官方配色 - 紫色漸層 */
+    --purple-1000: #662E8D;       /* Web_P1000 - 最深 */
+    --purple-800: #7C4DB3;        /* Web_P800 */
+    --purple-700: #8F6AC9;        /* Web_P700 */
+    --purple-600: #A68BE0;        /* Web_P600 */
+    --purple-400: #B9AAF0;        /* Web_P400 */
+    --purple-300: #C3BCF2;        /* Web_P300 */
+    --purple-200: #D5CFFA;        /* Web_P200 */
+    --purple-100: #E6E4FA;        /* Web_P100 - 最淺 */
+
+    /* 語義化別名 */
+    --primary-dark: #662E8D;      /* 主色深 */
+    --primary-light: #D5CFFA;     /* 主色淺 */
+    --primary-lighter: #E6E4FA;   /* 主色最淺 */
+
+    /* 灰階 (基於 Web_G1000) */
+    --gray-50: #F5F6F9;
+    --gray-100: #EBEEF3;
+    --gray-200: #D8DCE6;
+    --gray-300: #C4CAD9;
+    --gray-400: #A8B1C5;
+    --gray-500: #8D98B1;           /* Web_G1000 基準 */
+    --gray-600: #717A8E;
+    --gray-700: #565D6B;
+    --gray-800: #3A3F48;
+    --gray-900: #1F2125;
+
+    /* 複雜度/狀態色彩 */
+    --high: #dc2626;
+    --high-bg: #fef2f2;
+    --medium: #d97706;
+    --medium-bg: #fffbeb;
+    --low: #16a34a;
+    --low-bg: #f0fdf4;
+
+    /* 強調色 */
+    --accent: #22c55e;
+    --accent-light: #dcfce7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* 字體設定（英文優先 Helvetica Neue / Arial，中文 Noto Sans CJK TC / PingFang TC） */
+body {
+    font-family:
+        'Helvetica Neue',
+        Arial,
+        'Noto Sans CJK TC',
+        '思源黑體',
+        'PingFang TC',
+        '蘋方-繁',
+        'Microsoft JhengHei',
+        '微軟正黑體',
+        sans-serif;
+    color: var(--gray-900);
+    background: var(--gray-50);
+    line-height: 1.7;
+}
+
+h1, h2, h3, h4, h5, h6, .font-bold { font-weight: 700; }
+
+/* ---------- Banner（sticky 置頂） ---------- */
+.page-banner {
+    background: white;
+    padding: 1.5rem 2rem;
+    border-bottom: 3px solid var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+}
+.page-banner .logo { height: 80px; }
+.page-banner h1 { color: var(--primary); font-size: 1.6rem; }
+.page-banner .subtitle { color: var(--gray-600); font-size: 0.95rem; margin-top: 0.25rem; }
+
+/* ---------- 閱讀進度條（banner 下方，紫→綠漸層） ---------- */
+.reading-progress {
+    position: sticky;
+    top: 83px;
+    height: 4px;
+    background: var(--gray-200);
+    z-index: 199;
+}
+.reading-progress-bar {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    transition: width 0.1s linear;
+}
+
+/* ---------- 主佈局：左側 TOC + 右側內容 ---------- */
+.page-layout { display: flex; align-items: flex-start; }
+
+.sidebar-toc {
+    width: 260px;
+    position: sticky;
+    top: 87px;
+    height: calc(100vh - 87px);
+    overflow-y: auto;
+    background: white;
+    border-right: 1px solid var(--gray-200);
+    padding: 1.5rem 1rem;
+    flex-shrink: 0;
+}
+.sidebar-toc h2 { font-size: 0.9rem; color: var(--gray-700); margin-bottom: 1rem; }
+.toc-group-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 1rem 0 0.5rem;
+}
+.sidebar-toc a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    color: var(--gray-700);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+.sidebar-toc a:hover { background: var(--purple-100); color: var(--primary); }
+.sidebar-toc a.active { background: var(--primary); color: white; }
+.sidebar-toc a.active .toc-num { background: white; color: var(--primary); }
+.toc-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--purple-100);
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.toc-divider { height: 1px; background: var(--gray-200); margin: 0.75rem 0; }
+
+/* ---------- 內容容器 ---------- */
+.container { flex: 1; max-width: 980px; margin: 0 auto; padding: 2rem 2.5rem; }
+.container section { margin-bottom: 3rem; scroll-margin-top: 100px; }
+.container h2 {
+    color: var(--primary);
+    font-size: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--purple-200);
+    margin-bottom: 1.25rem;
+}
+.container h3 { color: var(--gray-800); font-size: 1.15rem; margin: 1.5rem 0 0.75rem; }
+.container p { margin-bottom: 1rem; }
+
+/* 卡片 / 表格 / code-block 等常用元件 */
+.card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(1,0,59,0.04);
+}
+table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; background: white; }
+th { background: var(--primary); color: white; padding: 0.75rem 1rem; text-align: left; font-size: 0.9rem; }
+td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--gray-200); font-size: 0.9rem; }
+tr:nth-child(even) td { background: var(--gray-50); }
+
+/* code-block 必須保留換行（遵守 CLAUDE.md 排版規則） */
+.code-block {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'SF Mono', Monaco, monospace;
+    line-height: 1.6;
+    background: var(--gray-900);
+    color: #e6e4fa;
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+
+/* ---------- Go-to-Top 按鈕 ---------- */
+.goto-top {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 44px;
+    height: 44px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(102,46,141,0.3);
+    z-index: 201;
+}
+.goto-top.visible { opacity: 1; }
+.goto-top:hover { transform: translateY(-4px); }
+.goto-top svg { width: 20px; height: 20px; fill: none; stroke: white; stroke-width: 2; }
+
+/* ---------- 頁尾 ---------- */
+.footer {
+    background: white;
+    border-top: 1px solid var(--gray-200);
+    padding: 1.5rem 2rem;
+    text-align: center;
+    color: var(--gray-500);
+    font-size: 0.85rem;
+}
+
+/* ---------- RWD：900px 以下 sidebar 收合為水平列表 ---------- */
+@media (max-width: 900px) {
+    .page-layout { flex-direction: column; }
+    .sidebar-toc {
+        width: 100%;
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .sidebar-toc h2, .toc-group-label, .toc-divider { display: none; }
+    .container { padding: 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Banner（sticky 置頂） -->
+<div class="page-banner">
+    <img src="https://www.tpisoftware.com/images/header/logo-pad-icon--en-15years.png" alt="TPI SOFTWARE" class="logo">
+    <div>
+        <h1>報告標題</h1>
+        <div class="subtitle">副標題說明</div>
+    </div>
+</div>
+
+<!-- 閱讀進度條 -->
+<div class="reading-progress"><div class="reading-progress-bar" id="progressBar"></div></div>
+
+<!-- Go-to-Top 按鈕 -->
+<button class="goto-top" id="gotoTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"></polyline></svg>
+</button>
+
+<!-- 主佈局：左側 TOC + 右側內容 -->
+<div class="page-layout">
+    <nav class="sidebar-toc" id="sidebarToc">
+        <h2>目錄</h2>
+        <div class="toc-group-label">分組標籤</div>
+        <a href="#s1" data-section="s1"><span class="toc-num">1</span>章節名稱一</a>
+        <a href="#s2" data-section="s2"><span class="toc-num">2</span>章節名稱二</a>
+        <div class="toc-divider"></div>
+        <a href="#s3" data-section="s3"><span class="toc-num">3</span>章節名稱三</a>
+    </nav>
+
+    <div class="container">
+        <section id="s1">
+            <h2>章節名稱一</h2>
+            <p>內容……</p>
+        </section>
+
+        <section id="s2">
+            <h2>章節名稱二</h2>
+            <p>內容……</p>
+        </section>
+
+        <section id="s3">
+            <h2>章節名稱三</h2>
+            <p>內容……</p>
+        </section>
+    </div>
+</div>
+
+<!-- 頁尾 -->
+<footer class="footer">
+    <p>報告名稱 | TPI SOFTWARE</p>
+</footer>
+
+<!-- JS：Go-to-Top + Progress Bar + TOC Active Tracking -->
+<script>
+(function() {
+    const gotoTop = document.getElementById('gotoTop');
+    const progressBar = document.getElementById('progressBar');
+    window.addEventListener('scroll', function() {
+        const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+        gotoTop.classList.toggle('visible', window.scrollY > 400);
+        progressBar.style.width = pct + '%';
+    }, { passive: true });
+
+    // IntersectionObserver for active TOC highlight
+    const links = document.querySelectorAll('.sidebar-toc a[data-section]');
+    const sections = [];
+    links.forEach(l => {
+        const el = document.getElementById(l.dataset.section);
+        if (el) sections.push({ el, link: l });
+    });
+    const obs = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+            const s = sections.find(x => x.el === e.target);
+            if (s) s.visible = e.isIntersecting;
+        });
+        const first = sections.find(s => s.visible);
+        if (first) {
+            links.forEach(l => l.classList.remove('active'));
+            first.link.classList.add('active');
+        }
+    }, { rootMargin: '-84px 0px -60% 0px' });
+    sections.forEach(s => obs.observe(s.el));
+})();
+</script>
+
+</body>
+</html>
