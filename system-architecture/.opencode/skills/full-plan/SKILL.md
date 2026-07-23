@@ -9,6 +9,26 @@ A four-phase workflow: loads global multi-repo context first (Phase 0), then exp
 
 **Hard gate**: Do NOT write any code, scaffold any project, or implement anything until all four phases are complete and the final plan document is produced.
 
+## Prerequisites & File Auto-Creation Rules
+
+當使用 `/full-plan` 技能時，必須嚴格按照 SKILL.md 規範執行。以下為流程順利執行所需的檔案條件；若檔案不存在，必須自動建立：
+
+1. **系統架構上下文 (Phase 0)**:
+   - `topology.yaml`: 用於理解全域系統拓撲（服務、路徑、端口、依賴等）。
+   - `AGENTS.md` 或 `CONTEXT.md` 或 `PLAN_AGENTS.md`: 用於了解服務職責邊界與開發規範。
+2. **進度管理 (Phase 0 & Final)**:
+   - `$CONTEXT_ROOT/PROGRESS/ROADMAP.md`: 用於了解團隊整體的特性開發狀態（當計畫/實作完成時，自動建立或更新）。
+   - `$CONTEXT_ROOT/PROGRESS/<DEV_NAME>.md`: 用於讀取個人之前的開發進度（當計畫/實作完成時，自動建立或更新，且**只保留最近 7 天的資料**）。
+3. **需求分析 (Phase 0.5)**:
+   - `$CONTEXT_ROOT/docs/requirements-analysis.md`: 用於檢查現有功能需求與新請求的關聯性（若不存在，則自動建立）。
+4. **API 合約 (Phase 0)**:
+   - `$CONTEXT_ROOT/contracts/openapi-*.yaml`: 用於確認相關服務已存在的 API 端點。
+5. **設計與任務產出 (Phase 2 & Final Phase)**:
+   - 設計文件：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`（當計畫完成時，自動建立或更新）。
+   - 實作計畫：`docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md`（當計畫完成時，自動建立或更新）。
+
+---
+
 ## Trigger
 
 The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no topic is given, ask what they want to plan.
@@ -45,7 +65,7 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
      - What each service OWNS and DOES NOT OWN
      - Which services may contain business logic and which may not
    - Internalize data flow direction and error propagation pattern
-    - Internalize development rules (these are architecture constraints, not suggestions)
+   - Internalize development rules (these are architecture constraints, not suggestions)
 
 4. **Identify developer (identity check)**
    - List files in `$CONTEXT_ROOT/PROGRESS/` directory
@@ -56,11 +76,10 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
    - Set `$DEV_NAME` internally — ALL progress updates in this session go to `PROGRESS/$DEV_NAME.md`
    - Never write to another developer's progress file
    - 💡 [Plan 模式提示]：準備建立 PROGRESS/$DEV_NAME.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/$DEV_NAME.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 5. **Load developer progress** (use Read tool)
-   - Read `$CONTEXT_ROOT/PROGRESS/ROADMAP.md` — understand feature status across the team
-   - Read `$CONTEXT_ROOT/PROGRESS/$DEV_NAME.md` — understand what this developer was working on
+   - Read `$CONTEXT_ROOT/PROGRESS/ROADMAP.md` — understand feature status across the team (if not exists, automatically create it)
+   - Read `$CONTEXT_ROOT/PROGRESS/$DEV_NAME.md` — understand what this developer was working on (only retain the last 7 days of data)
    - Present summary to user:
      ```
      [Developer: <name>]
@@ -102,7 +121,7 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
 
 1. **Load requirements document**
    - Read `$CONTEXT_ROOT/docs/requirements-analysis.md`
-   - If the file does not exist → skip this phase and note to the user: "No requirements analysis document found. Consider creating one with `/fp generate-requirements`."
+   - If the file does not exist → automatically create `$CONTEXT_ROOT/docs/requirements-analysis.md` with initial requirements analysis template and inform the user.
 
 2. **Map the current feature request to existing requirements**
    - Determine which FR-IDs in the document are affected by the current feature request
@@ -128,14 +147,13 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
    - Add a changelog entry at the bottom with date, version, change description
    - Confirm with the user before writing
    - 💡 [Plan 模式提示]：準備寫入/更新 docs/requirements-analysis.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/requirements-analysis.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 5. **Confirm readiness**
    - Say: "Phase 0.5 complete. Requirements documented. Proceeding to explore."
    - Continue to Phase 1
 
 ### Behavior Rules
-- If `docs/requirements-analysis.md` does not exist and the user is starting a new feature → flag: "I recommend generating a requirements analysis document first. Shall I create one?"
+- If `docs/requirements-analysis.md` does not exist → automatically create it.
 - If the user's feature request contradicts a documented requirement → flag immediately and ask for clarification
 - Always get user approval before modifying `docs/requirements-analysis.md`
 - Keep the changelog up to date with every modification
@@ -187,7 +205,6 @@ After the user approves the full design:
 
 1. Write design doc to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
    - 💡 [Plan 模式提示]：準備將設計寫入 docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 2. Do a spec self-review: check for placeholders, contradictions, ambiguity, scope
 3. Ask the user to review the written spec
 
@@ -233,7 +250,6 @@ If a question reveals a gap or flaw in the design, do NOT implement a fix direct
 3. Get user approval before making any change
 4. Update `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
    - 💡 [Plan 模式提示]：準備更新 docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 ### Transition
 
@@ -248,7 +264,6 @@ After all three phases complete, produce a task plan document:
 **File**: `docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md`
 
 - 💡 [Plan 模式提示]：準備建立 docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md），並提示我切回 plan 模式。
-- 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 ### Template
 
@@ -279,46 +294,3 @@ After all three phases complete, produce a task plan document:
 
 ## Notes
 - Decisions made during grill phase that affect implementation
-```
-
-Present the document to the user for review. Ask if they'd like to proceed with implementation or make adjustments.
-
-### Progress Tracking
-After the user completes implementation:
-1. Offer to update `PROGRESS/$DEV_NAME.md` with what was accomplished in this session
-   - 💡 [Plan 模式提示]：準備更新 PROGRESS/$DEV_NAME.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/$DEV_NAME.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
-2. Offer to update `PROGRESS/ROADMAP.md` feature status (only with user's explicit approval)
-   - 💡 [Plan 模式提示]：準備更新 PROGRESS/ROADMAP.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/ROADMAP.md），並提示我切回 plan 模式。
-   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
-3. Remind user: "I've updated your progress log. You can git commit when ready."
-
----
-
-## Guardrails
-
-- **Don't implement** — Never write application code or scaffold projects. Creating plan documents is fine.
-- **Don't fake understanding** — If something is unclear, dig deeper
-- **Don't skip phases** — Each phase serves a distinct purpose. Run all four.
-- **Don't force structure in Phase 1** — Let exploration be open
-- **Don't bundle questions in Phase 2 & 3** — One at a time
-- **Do explore the codebase** — Ground discussions in reality
-- **Do visualize** — A good ASCII diagram is worth many paragraphs
-- **Do go back** — If new info emerges in Phase 3, update the Phase 2 design doc
-- **User always has control** — They can skip ahead, go back, or stop at any time
-- **Plan 模式寫入提醒** — 只要準備寫入或更新任何 `.md` 檔案（包括需求檔、設計檔、任務檔或進度檔），必須遵守以下流程：
-  1. 提示使用者：「準備建立/更新 `<檔案路徑>`，請開啟 build / act 模式。」
-  2. 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
-  3. 提示使用者：「請切回 plan 模式以繼續後續討論。」
-
-## 總結 /full-plan 工作成果
-
-在流程結束時，呈現本次產出與更新的 .md 檔案彙總表格：
-
-| 檔案 | Phase | 寫入次數 |
-| :--- | :--- | :---: |
-| `docs/requirements-analysis.md` | Phase 0.5 ( 需求分析 ) | 1 次 |
-| `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Phase 2→3 產出 ( 設計鎖定後 ) | 1~2 次 |
-| `docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md` | Phase 3 最終產出 ( Grill 完成後 ) | 1 次 |
-| `PROGRESS/$DEV_NAME.md` | 實作完成後 ( 進度記錄 ) | 1 次 |
-| `PROGRESS/ROADMAP.md` | 實作完成後 ( 徵得同意後更新 ) | 1 次 |
