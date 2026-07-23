@@ -53,10 +53,10 @@ description: 三階段規劃工作流程 — 從探索以釐清問題，到腦�
 
 2. **載入 topology.yaml**（使用 Read 工具）
    - 解析：所有服務、儲存庫路徑、端口、依賴關係與職責
-   - 向使用者展示摘要：
+   - 向使用者展示 topology.yaml 摘要：
      ```
      [系統: <name>]
-     Client_Web_APP(:3000) → API_Gateway(:8080) → Gateway_Plugin(:8081) → Service_API(:8082)
+      `topology.yaml` 檔案內容
      ```
    - 詢問：「對於此任務，這樣的系統拓撲是否正確？」
 
