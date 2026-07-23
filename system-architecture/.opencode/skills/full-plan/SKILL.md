@@ -56,6 +56,7 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
    - Set `$DEV_NAME` internally — ALL progress updates in this session go to `PROGRESS/$DEV_NAME.md`
    - Never write to another developer's progress file
    - 💡 [Plan 模式提示]：準備建立 PROGRESS/$DEV_NAME.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/$DEV_NAME.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 5. **Load developer progress** (use Read tool)
    - Read `$CONTEXT_ROOT/PROGRESS/ROADMAP.md` — understand feature status across the team
@@ -127,6 +128,7 @@ The user invokes this skill with `/full-plan <topic>` or `/fp <topic>`. If no to
    - Add a changelog entry at the bottom with date, version, change description
    - Confirm with the user before writing
    - 💡 [Plan 模式提示]：準備寫入/更新 docs/requirements-analysis.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/requirements-analysis.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 5. **Confirm readiness**
    - Say: "Phase 0.5 complete. Requirements documented. Proceeding to explore."
@@ -185,6 +187,7 @@ After the user approves the full design:
 
 1. Write design doc to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
    - 💡 [Plan 模式提示]：準備將設計寫入 docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 2. Do a spec self-review: check for placeholders, contradictions, ambiguity, scope
 3. Ask the user to review the written spec
 
@@ -230,6 +233,7 @@ If a question reveals a gap or flaw in the design, do NOT implement a fix direct
 3. Get user approval before making any change
 4. Update `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
    - 💡 [Plan 模式提示]：準備更新 docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 ### Transition
 
@@ -244,6 +248,7 @@ After all three phases complete, produce a task plan document:
 **File**: `docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md`
 
 - 💡 [Plan 模式提示]：準備建立 docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md），並提示我切回 plan 模式。
+- 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 
 ### Template
 
@@ -282,8 +287,10 @@ Present the document to the user for review. Ask if they'd like to proceed with 
 After the user completes implementation:
 1. Offer to update `PROGRESS/$DEV_NAME.md` with what was accomplished in this session
    - 💡 [Plan 模式提示]：準備更新 PROGRESS/$DEV_NAME.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/$DEV_NAME.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 2. Offer to update `PROGRESS/ROADMAP.md` feature status (only with user's explicit approval)
    - 💡 [Plan 模式提示]：準備更新 PROGRESS/ROADMAP.md 檔案時，請打開 build / act 模式，寫入檔案後，明確標記出檔案的路徑（例如：已寫入檔案：PROGRESS/ROADMAP.md），並提示我切回 plan 模式。
+   - 💡 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
 3. Remind user: "I've updated your progress log. You can git commit when ready."
 
 ---
@@ -299,8 +306,19 @@ After the user completes implementation:
 - **Do visualize** — A good ASCII diagram is worth many paragraphs
 - **Do go back** — If new info emerges in Phase 3, update the Phase 2 design doc
 - **User always has control** — They can skip ahead, go back, or stop at any time
+- **Plan 模式寫入提醒** — 只要準備寫入或更新任何 `.md` 檔案（包括需求檔、設計檔、任務檔或進度檔），必須遵守以下流程：
+  1. 提示使用者：「準備建立/更新 `<檔案路徑>`，請開啟 build / act 模式。」
+  2. 寫入檔案後，明確輸出：「已寫入檔案：`<檔案路徑>`」。
+  3. 提示使用者：「請切回 plan 模式以繼續後續討論。」
 
+## 總結 /full-plan 工作成果
 
-5. 設計與任務產出 (Phase 2 & Final Phase):
-- 設計文件應寫入 docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md（當計畫完成時，自動建立或更新）。
-- 實作計畫應寫入 docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md（當計畫完成時，自動建立或更新）。
+在流程結束時，呈現本次產出與更新的 .md 檔案彙總表格：
+
+| 檔案 | Phase | 寫入次數 |
+| :--- | :--- | :---: |
+| `docs/requirements-analysis.md` | Phase 0.5 ( 需求分析 ) | 1 次 |
+| `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` | Phase 2→3 產出 ( 設計鎖定後 ) | 1~2 次 |
+| `docs/superpowers/specs/YYYY-MM-DD-<topic>-tasks.md` | Phase 3 最終產出 ( Grill 完成後 ) | 1 次 |
+| `PROGRESS/$DEV_NAME.md` | 實作完成後 ( 進度記錄 ) | 1 次 |
+| `PROGRESS/ROADMAP.md` | 實作完成後 ( 徵得同意後更新 ) | 1 次 |
