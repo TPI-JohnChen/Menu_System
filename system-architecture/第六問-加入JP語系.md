@@ -1,0 +1,1 @@
+/full-plan, 目前系統的語系有 zh-tw / en, 我想增加 jp (日文)
