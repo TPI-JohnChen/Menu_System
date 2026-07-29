@@ -2,6 +2,7 @@ const MenuManager = {
   state: 0,
   activeId: null,
   badgeMap: {},
+  dynamicItems: {},
 
   init() {
     const saved = localStorage.getItem('menu-state');
@@ -22,13 +23,49 @@ const MenuManager = {
     Messenger.broadcastToAllIframes({ type: 'menuCollapsed', payload: { state: this.state } });
   },
 
+  addDynamicItems(parentId, items) {
+    this.dynamicItems[parentId] = items;
+    this.render();
+  },
+
+  removeDynamicItems(parentId) {
+    delete this.dynamicItems[parentId];
+    this.render();
+  },
+
+  getEffectiveConfig() {
+    const config = JSON.parse(JSON.stringify(window.MENU_CONFIG));
+    Object.keys(this.dynamicItems).forEach(parentId => {
+      const parent = this._findItem(config, parentId);
+      if (parent && parent.children) {
+        const dynamicItems = this.dynamicItems[parentId];
+        const staticChildren = parent.children.filter(c => !c._dynamic);
+        parent.children = staticChildren.concat(
+          dynamicItems.map(item => ({ ...item, _dynamic: true }))
+        );
+      }
+    });
+    return config;
+  },
+
+  _findItem(items, id) {
+    for (const item of items) {
+      if (item.id === id) return item;
+      if (item.children) {
+        const found = this._findItem(item.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  },
+
   render() {
     const panel = document.getElementById('menu-panel');
     panel.className = 'menu-panel ' + this.getStateClass();
     panel.innerHTML = '';
     const ul = document.createElement('ul');
     ul.className = 'menu-list';
-    this.renderItems(window.MENU_CONFIG, ul, 0);
+    this.renderItems(this.getEffectiveConfig(), ul, 0);
     panel.appendChild(ul);
     this.applyFlyoutListeners(panel);
   },

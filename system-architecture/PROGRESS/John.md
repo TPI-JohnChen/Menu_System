@@ -1,118 +1,149 @@
 # Progress — John
 
-## 2026-07-14
+## 2026-07-27（OpenCode Serve Chat Bot — Phase 1 + 2）
 
 ### 完成項目
-- 建立 Web Menu System v1.0 完整專案
-- 18 個檔案，純靜態 HTML/CSS/JS（無 server 需求）
-- 完整設計文件：`.opencode/plans/2026-07-14-web-menu-system-design.md`
+- 遵循完整 `/full-plan` 四階段流程（Phase 0→0.5→1→2→3）
+- 產出需求文件、設計文件、實作計畫
+- 實作 Phase 1（Agent Server 管理 + Proxy 路由）+ Phase 2（動態 Menu）
 
-### 核心功能
-- 左側 2 階層 Menu，三態收合（展開/僅第一層/完全收合）
-- Header（Menu 切換 / 搜尋 / 登入者 / 通知徽章 / 主題切換 / 語言切換）
-- Footer（版本號 / 版權宣告 / 系統狀態）
-- Content iframe 載入內部與外部頁面
-- iframe 雙向 postMessage 通訊（navigate / updateBadge / setTitle / themeChanged / menuCollapsed / ready）
-- 設定檔驅動（config/menu.js / header.js / footer.js），含多語系支援
-- 淺色/深色主題切換（CSS custom properties）
-- 語言切換（zh-TW / en），Menu/Header/Footer 即時更新
-- 瀏覽器上一頁/下一頁（pushState + popstate）
-- 全域搜尋過濾 Menu 項目
-- localStorage 儲存 Menu 收合狀態與語言偏好
-- 外部嵌入不受主題影響
+### Phase 1 實作（Agent Server 管理 + Proxy 路由）
+- **Task 1**: `ai-proxy/server.js` — 新增 opencode 通用轉發路由 `/api/opencode/:serverId/*`
+  - Server 設定 CRUD（GET/POST/DELETE /api/opencode/servers）
+  - 記憶體 Map + servers.json 持久化
+  - Base64 編碼 password
+  - SSE 串流 pipe 支援
+  - 禁止 host:port 重複
+- **Task 2**: `web-menu/lib/opencode-manager.js` — 前端共用層
+  - localStorage CRUD（key: opencode_servers）
+  - checkHealth / fetchProjects / apiCall 通用方法
+  - Proxy 離線時自動重試同步佇列
+- **Task 3**: `web-menu/pages/agent-server-management.html` — 卡片式 UI
+  - 新增/編輯/刪除 Agent Server
+  - 測試連線 + 狀態指示燈 🟢/🔴
+  - 連線成功自動抓 project 列表 + 更新 Menu
 
-### 架構設計決策
-- 所有頁面統一使用 iframe 載入（file:// 相容 + 隔離性 + 內外部一致）
-- 設定檔使用 .js 格式（避開 file:// 下 fetch 的 CORS 限制）
-- Menu 收合按鈕置於 Header 左側（完全收合時仍可存取）
-- iframe sandbox: allow-scripts allow-same-origin
+### Phase 2 實作（動態 Menu）
+- **Task 4**: `web-menu/config/menu.js` — 新增「Agent App」父層（dynamic: true）
+- **Task 5**: `web-menu/components/menu.js` — 新增 `addDynamicItems` / `removeDynamicItems` / `getEffectiveConfig` 方法
+- **Task 6**: `web-menu/index.html` + `app.js` — 載入 opencode-manager.js，init 時重建 Menu
 
-### v2 候選
-- tokenRefreshed 通訊
-- 通知列表彈窗
-- 更多內部頁面
+### 核心設計決策
+- 透過 AI Proxy 中轉所有 opencode 請求（不直接連）
+- Server 設定存兩邊：前端 localStorage + Proxy servers.json
+- password 以 Base64 編碼持久化
+- Menu 項目動態產生（新增 server → 抓 projects → 插入 Menu）
+- Proxy 離線時前端自動重試同步
+
+### Phase 3 實作（Chat Bot 頁面）
+- **Task 7+8**: `web-menu/pages/chat-bot.html` — 完整聊天頁面
+  - 左右分割 layout（session 樹 + 對話區）
+  - URL params 解析：serverId, project
+  - Session 樹：載入列表、點選切換、活動狀態高亮
+  - Session CRUD：建立（＋）、重新命名（✏）、刪除（✕）
+  - 訊息發送：Enter / 按鈕發送，顯示 user/assistant 氣泡
+  - 供應商選擇器（從 /config/providers 動態載入）
+  - 專案切換 dialog（📂）
+  - 多語系（zh-TW / en）
+
+### Phase 4 實作（供應商/模型切換 + 專案管理）
+- **Task 9**: Header 右側 dropdown 選擇器，從 `/config/providers` 動態載入，顯示 `Provider / Model` 格式
+- **Task 10**: 📂 按鈕 → dialog 列出所有 project → 點選後 reload chat-bot 頁面帶新 project 參數
 
 ---
 
-## 2026-07-14（Phase 2 — AI Provider Settings 規劃）
+## 2026-07-27（Session 過濾修正 + Menu 來源變更）
 
-### 完成項目
-- 完成 Full Plan 四階段規劃（Phase 0 → Phase 0.5 → Phase 1 → Phase 2 → Phase 3）
-- 建立需求分析文件：`docs/requirements-analysis.md`
-- 建立設計文件：`docs/superpowers/specs/2026-07-14-ai-provider-settings-design.md`
-- 建立實作計畫：`docs/superpowers/specs/2026-07-14-ai-provider-settings-tasks.md`
+### 重大發現：`opencode serve` API 限制
+- `POST /session` **忽略** `projectID`、`directory`、`path` — 所有 API 建立的 session 的 `projectID` 固定為 `"global"`
+- `GET /session?projectID=xxx` 無法過濾
+- `GET /session?directory=xxx` 可過濾但僅限 Web UI 建立的 session
+- 桌面版 app（PID 22336）**無 HTTP 端點**，無法直接連
+- `opencode serve`（PID 26968）是唯一 HTTP API 入口
+- 兩個行程的 session 資料庫各自獨立
 
-### 規劃摘要
-- **功能**：AI Agent 左側 Menu 新增「供應商設定」
-- **Menu 結構**：供應商設定（第一層）→ 供應商管理 + 模型瀏覽器
-- **供應商**：OpenAI, Google, Ollama, LM Studio, OpenAI Compatible, Anthropic
-- **UI**：卡片式（預設收合），響應式佈局
-- **儲存**：localStorage（明文，本機開發環境）
-- **模型查詢**：即時 API 呼叫（MVP: OpenAI + Ollama）
-- **聊天補全**：頁面內展開聊天測試區塊，全部供應商都做
-- **CORS**：獨立 AI Proxy 服務（另開 repo）
-- **Debug Panel**：預設隱藏，`?setting_debug=true` 啟用
+### Phase 5 — Session 過濾策略修正（Task 11，3 次迭代）
 
-### 決策記錄
-- API Key 安全性：明文存 localStorage（本機開發環境可接受）
-- 同類型多供應商：允許（如兩個 OpenAI 帳號）
-- 模型屬性：只顯示 API 回傳的欄位
-- 多語系：完整支援 zh-TW / en
-- 主題：遵循現有 light/dark 機制
+| 迭代 | 策略 | 結果 |
+|------|------|------|
+| v1 | `GET /session?projectID=<SHA>` | ❌ API 忽略參數 |
+| v2 | localStorage 映射 `sessionID→projectID` | ❌ 既有 session 無資料 |
+| v3 | `s.directory.startsWith(worktree)` + localStorage 補強 | ✅ 採用 |
 
-### 已完成項目
-- ✅ Task 1：更新 config/menu.js — 新增「供應商設定」Menu
-- ✅ Task 2：建立 config/provider-types.js — 供應商類型定義表（6 種供應商）
-- ✅ Task 3：建立 lib/provider-manager.js — localStorage CRUD + API 呼叫介面
-- ✅ Task 4：建立 pages/provider-management.html — 卡片式 UI + Debug Panel
-- ✅ Task 5：建立 pages/model-browser.html — 響應式佈局 + 聊天測試
-- ✅ Task 6：建立 docs/provider-settings-usage.md — Debug Panel 使用說明
-- ✅ Task 7：AI Proxy 服務（ai-proxy/server.js）— 全部 6 種供應商支援
+**實作項目**：
+- `chat-bot.html`：移除 `projectId` / `isSha`，改用 `worktree` 路徑
+- URL 參數從 `&project=` 改為 `&worktree=`
+- `loadSessions()`：client‑side 用 `directory` 前綴比對
+- `createSession()` / `deleteSession()`：localStorage 映射管理
+- `sendMessage()` / `loadMessages()`：移除無效的 `projectID` 參數
 
-### 實際完成的功能
-- 供應商管理：卡片式 UI，預設收合，支援新增/編輯/刪除
-- 模型瀏覽器：選擇供應商 → 查詢模型 → 顯示屬性 → 聊天測試
-- AI Proxy：Health Check + Models + Test + Chat 端點
-- 供應商支援：OpenAI, Google, Ollama, LM Studio, OpenAI Compatible, Anthropic
-- 模型查詢：OpenAI, Google, Ollama, LM Studio, OpenAI Compatible（Anthropic 不支援）
-- 聊天補全：全部 6 種供應商
-- 測試連線：全部 6 種供應商
-- 多語系：完整支援 zh-TW / en
-- 主題：遵循現有 light/dark 機制
-- Debug Panel：預設隱藏，`?setting_debug=true` 啟用
+### Phase 5 — Menu 來源變更（Task 12）
+- `opencode-manager.js`：新增 `fetchSessionDirectories()`
+- `refreshMenu()`：改為 async，從 `GET /session` 的 `directory` 去重取得 Menu 項目
+- Menu URL：`pages/chat-bot.html?serverId=xxx&worktree=yyy`
+- `agent-server-management.html`：測試連線改抓 directories（取代 projects）
+- `init()` 改為 async，啟動時自動 refresh menu
 
-### 已知待測試功能
-- Ollama 模型查詢
-- LM Studio 模型查詢
-- 聊天補全（全部供應商）
+### Phase 6 — SSE 訊息串流（Task 14）
+
+**問題**：Chat Bot 回覆全部一次跳出，無逐字效果
+**根因**：`EventSource` 在 `file://` 下被瀏覽器封鎖
+
+**解決方案**：
+- **Proxy 新增靜態檔案服務**：`app.use(express.static(...))` → 頁面從 `http://localhost:3001/` 同源載入
+- **chat-bot.html**：`sendMessage()` 在 POST 前開 `EventSource('.../event')`，監聽 `message.part.delta` 即時更新 bubble
+- **start-services.bat**：改為開啟 `http://localhost:3001/...` 取代 `file:///`
+
+**驗證**：
+- Node.js 實測 `GET /event` 透過 proxy 正常收到 delta events（兩台 server 4096、9097 皆測過）
+- 瀏覽器實測：發送訊息後 assistant bubble 逐字出現 ✅
+
+### 桌面版 app API 研究（Task 13）
+- 桌面版 app 不監聽任何 TCP port，無法直接使用
+- `opencode session list` 在目錄下執行只顯示該目錄 session → CLI 行為
+- 結論：Web Menu 繼續用 `opencode serve` + `directory` 前綴比對
+
+### 檔案異動摘要
+| 檔案 | 操作 | 說明 |
+|------|------|------|
+| `web-menu/lib/opencode-manager.js` | 修改 | 新增 `fetchSessionDirectories()`，`refreshMenu()`/`init()` 改 async |
+| `web-menu/pages/chat-bot.html` | 修改 | URL 參數 `worktree`，session 過濾改 `directory` 前綴比對 |
+| `web-menu/pages/agent-server-management.html` | 修改 | Projects → Directories |
+| `system-architecture/PROGRESS/John.md` | 修改 | 本記錄 |
+| `system-architecture/docs/superpowers/specs/2026-07-27-opencode-serve-chat-bot-design.md` | 修改 | 新增 API 限制、更新架構 |
+| `system-architecture/docs/superpowers/specs/2026-07-27-opencode-serve-chat-bot-tasks.md` | 修改 | 新增 Phase 5 |
 
 ---
 
-## 2026-07-15（Ollama 聊天測試 502 修復 + 串流支援）
-
-### 問題來源
-- `第五問.md`：模型瀏覽器對 Ollama 供應商（`GB10--63`, `gemma4:e4b`）聊天測試回傳 502 Bad Gateway
+## 2026-07-29（Menu 功能設計規劃）
 
 ### 完成項目
-- 建立設計文件：`docs/superpowers/specs/2026-07-15-ollama-chat-streaming-design.md`
-- 建立實作計畫：`docs/superpowers/specs/2026-07-15-ollama-chat-streaming-tasks.md`
-- 修復 Ollama 聊天 502（根因：`chatOllama()` 未帶 `stream: false`，Ollama 預設回傳 NDJSON 多行 JSON，`response.json()` 解析失敗）
-- 依使用者要求，改為保留串流體感：新增 `chatOllamaStream()` 以 SSE 逐段轉發，前端逐字顯示回覆（而非關閉串流一次性回應）
-- 修正 `node-fetch` 的 `response.body` 為 Node.js Readable stream（非 Web ReadableStream）、無 `getReader()` 的相容性問題，改用 `for await...of` 讀取
+- 遵循完整 `/full-plan` 四階段流程（Phase 0→0.5→1→2→3→Build）
+- 產出 Menu 功能設計完整文件：`PROGRESS/Menu.md`
+- 產出設計文件：`docs/superpowers/specs/2026-07-29-menu-design.md`
+- 產出實作計畫：`docs/superpowers/specs/2026-07-29-menu-tasks.md`
 
-### 檔案異動
-- `ai-proxy/server.js`：新增 `chatOllamaStream()`，`/api/providers/:type/chat` 路由對 `ollama` 分流走 SSE
-- `web-menu/lib/provider-manager.js`：`chatCompletion()` 新增 `onDelta` callback，新增 `consumeChatStream()`
-- `web-menu/pages/model-browser.html`：`sendChatMessage()` 改用串流逐字更新，新增 `setChatMessageContent()`
+### 設計摘要
+- **Menu 結構**：9 個一級選單（快速對話 / App / Skill / 定時任務 / Agent / Provider 直連 / 儀表板 / 權限管理 / 稽核日誌 / 系統設定）
+- **RBAC 模型**：4 固定角色 + 自訂角色混合模型，扁平部門，部門管理員可自治與指派代理人
+- **開發順序**：4 個 Phase（核心骨架 → 治理與協作 → 自動化與監控 → 進階）
+- **績效監控**：TTFT/TOPS 比對 OrientAI 與 Opencode 端效能損耗
+- **SOP 工作流**：四步驟方法論（格式標準化 → 任務拆解 → 雙向迭代 → 整合執行）
+- **稽核日誌**：設定變更軌跡 + Chat Bot 訊息往返日誌
 
 ### 決策記錄
-- 串流支援範圍僅限 Ollama；其餘供應商（OpenAI/Google/LM Studio/Anthropic/OpenAI Compatible）維持一次性 JSON 回應，未變動
-- 原非串流版 `chatOllama()` 保留不刪除，供 `chatCompletionByType` 其他情境使用
+- 部門採扁平不採樹狀（5人工作室不須 over-engineering）
+- 角色採固定 4 個 + 自訂混合（保有簡單又具彈性）
+- 代理人為部門管理員屬性而非獨立角色
+- 對話拆分快速對話（個人預設）與 Agent 對話（完整 Chat Bot）
+- App 支援 CRUD 動態新增（預載 RAG 查詢 / 文件上傳 / Agent 對話）
+- Marketplace 全刪（屬於 OrientAI_Manager 範圍）
+- MCP 管理不出現在 Menu 中（Opencode 內部事項）
 
-### 流程檢討
-- 本次處理過程中未完整依 `/full-plan` 四階段流程走（直接用 Claude Code 內建 plan-mode 出計畫並動手改code），design/tasks 文件與本進度記錄都是事後補寫。下次呼叫 `/full-plan` 應嚴格依 Phase 0→0.5→1→2→3 執行，並在完成後主動更新 `PROGRESS/$DEV_NAME.md` 與詢問是否更新 `ROADMAP.md`。
-
-### 已知待測試功能
-- Ollama 模型查詢
-- LM Studio 模型查詢
-- 聊天補全（OpenAI / Google / LM Studio / Anthropic / OpenAI Compatible，尚未逐一實測）
+### 產出檔案
+| 檔案 | 說明 |
+|------|------|
+| `PROGRESS/Menu.md` | Menu 功能設計完整文件（含 Menu 結構 / RBAC / SOP 工作流） |
+| `docs/superpowers/specs/2026-07-29-menu-design.md` | 設計文件（鎖定後的規格） |
+| `docs/superpowers/specs/2026-07-29-menu-tasks.md` | 實作計畫（4 Phase 共 15 Tasks） |
+| `PROGRESS/John.md` | 本進度記錄 |

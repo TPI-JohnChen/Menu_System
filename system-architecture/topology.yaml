@@ -1,0 +1,85 @@
+name: Menu_System
+description: AI Provider 管理儀表板與 Proxy 服務 — 瀏覽器-based 供應商管理、模型瀏覽、聊天測試、opencode serve 代理伺服器管理
+version: 1.0.0
+
+services:
+  - name: ai-proxy
+    repo:
+      path: ../ai-proxy
+      url: https://github.com/TPI-JohnChen/Menu_System
+    port: 3001
+    language: JavaScript (Node.js)
+    framework: Express 4.x
+    description: AI Provider Proxy Service — 轉發前端請求到各 AI 供應商 API，處理 CORS
+    responsibilities:
+      - 轉發 HTTP 請求到 OpenAI / Google Gemini / Ollama / LM Studio / Anthropic 等供應商
+      - 提供 Provider CRUD 管理 API（儲存於 servers.json）
+      - 靜態網頁伺服器（serve web-menu 靜態檔案）
+      - opencode serve 實例的健康檢查與代理
+      - Chat session 管理（建立、刪除、樹狀結構查詢）
+    dependencies: []
+    env:
+      PORT: "3001"
+
+  - name: web-menu
+    repo:
+      path: ../web-menu
+      url: https://github.com/TPI-JohnChen/Menu_System
+    port: null
+    language: JavaScript (Vanilla)
+    framework: 無框架（純 HTML/CSS/JS）
+    description: Web Menu 前端 — iframe-based 的 AI 供應商管理儀表板
+    responsibilities:
+      - 供應商管理 UI（新增/編輯/刪除/測試連線）
+      - 模型瀏覽與即時聊天測試
+      - opencode serve 代理伺服器管理 UI
+      - 多語系支援（zh-TW / en / jp）
+      - 明暗主題切換
+      - 選單導航與 iframe 內容載入
+    dependencies:
+      - ai-proxy (所有 API 請求透過 ai-proxy 轉發)
+    env: {}
+
+  - name: system-architecture
+    repo:
+      path: .
+      url: https://github.com/TPI-JohnChen/Menu_System
+    port: null
+    language: Markdown / YAML / SVG
+    framework: 純文件
+    description: 系統架構上下文 repo — 存放全局拓撲、職責邊界、開發規範、進度追蹤
+    responsibilities:
+      - 定義全局系統拓撲（topology.yaml）
+      - 定義服務職責邊界與開發規範（AGENTS.md / PLAN_AGENTS.md）
+      - 管理團隊開發進度（PROGRESS/）
+      - 維護功能需求文件（docs/requirements-analysis.md）
+      - 提供 /full-plan 技能（.opencode/skills/full-plan/SKILL.md）
+      - 產出設計與任務規格（docs/superpowers/specs/）
+    dependencies: []
+
+data_flow:
+  - from: web-menu (瀏覽器)
+    to: ai-proxy
+    via: HTTP (localhost:3001)
+    description: 前端所有 API 請求（供應商管理、模型查詢、聊天、opencode serve）皆透過 ai-proxy
+
+  - from: ai-proxy
+    to: 外部 AI 供應商 (OpenAI / Google / Ollama / LM Studio / Anthropic)
+    via: HTTP (外部 API)
+    description: ai-proxy 將前端請求轉發到對應的 AI 供應商 API
+
+  - from: ai-proxy
+    to: opencode serve 實例
+    via: HTTP (遠端)
+    description: ai-proxy 代理前端對 opencode serve 遠端實例的請求
+
+  - from: ai-proxy
+    to: web-menu (靜態檔案)
+    via: Express static middleware
+    description: ai-proxy 作為靜態網頁伺服器提供 web-menu 前端檔案
+
+architecture_rules:
+  - web-menu 不得直接呼叫外部 AI 供應商 API，必須透過 ai-proxy
+  - ai-proxy 不得包含業務邏輯，僅負責路由、轉發、CORS 處理
+  - 新 AI 供應商類型需同時更新 ai-proxy 轉發邏輯與 web-menu 的 provider-types.js
+  - 所有架構決策與變更記錄於 system-architecture 中

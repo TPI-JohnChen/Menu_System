@@ -158,6 +158,75 @@
   - BR-31：模型查詢 MVP 先做 OpenAI + Ollama
 - **狀態**：✅ 已完成（v2.0）
 
+### FR-14：Agent Server 管理
+
+- **描述**：左側 Menu 新增「Agent App」父層，包含「Agent Server 管理」子頁面。管理多個 opencode serve 連線（新增/編輯/刪除/測試連線），每個連線包含位址（host:port）、認證資訊、狀態
+- **觸發條件**：使用者點擊 Menu「Agent Server 管理」
+- **輸入**：opencode serve 位址、連線名稱、認證帳號密碼（可選）
+- **輸出**：設定儲存於 localStorage，卡片式 UI 顯示所有 Agent Server
+- **業務規則**：
+  - BR-32：每個 Agent Server 有唯一 ID，名稱可自訂
+  - BR-33：支援 HTTP Basic Auth（透過 AI Proxy 中轉）
+  - BR-34：卡片顯示名稱、位址、連線狀態（綠燈/紅燈）
+  - BR-35：展開卡片顯示設定欄位 + 操作按鈕（測試連線/儲存/刪除）
+  - BR-36：測試連線透過 AI Proxy 呼叫 `/api/opencode/:serverId/health`
+  - BR-37：連線成功後自動抓取 project 列表
+- **狀態**：📋 規劃中（v3.0）
+
+### FR-15：動態 App Menu
+
+- **描述**：從已連線的 Agent Server 自動取得 opencode project 列表，動態產生「Agent App」父層下的 Menu 項目。每個 project 對應一個 App 選項
+- **觸發條件**：Agent Server 連線成功 or 頁面重新整理
+- **輸入**：Agent Server 的 project 列表
+- **輸出**：Menu 動態新增/更新 App 選項
+- **業務規則**：
+  - BR-38：App 項目以 project 名稱為標籤，圖示統一使用預設值
+  - BR-39：點擊 App 項目載入 Chat Bot 頁面，帶入 serverId + projectPath 參數
+  - BR-40：若 Agent Server 離線，對應的 App 項目顯示離線狀態
+  - BR-41：刪除 Agent Server 時一併移除對應的 App Menu 項目
+- **狀態**：📋 規劃中（v3.0）
+
+### FR-16：Chat Bot 頁面
+
+- **描述**：App（project）的聊天介面，提供 session CRUD、訊息發送/顯示、供應商/模型選擇、專案目錄切換
+- **觸發條件**：使用者點擊 Menu 中的 App 項目
+- **輸入**：serverId, projectPath（從 Menu 項目傳入）
+- **輸出**：Chat Bot 頁面渲染
+- **業務規則**：
+  - BR-42：頁面左側顯示 session 列表（樹狀結構，由 `GET /session` + `GET /session/:id/children` 組成）
+  - BR-43：可建立新 session、為 session 重新命名、刪除 session
+  - BR-44：點選 session 載入歷史訊息 `GET /session/:id/message`
+  - BR-45：訊息輸入框支援發送文字訊息 `POST /session/:id/message`
+  - BR-46：頁面頂部顯示當前 project 名稱，支援切換專案目錄（透過 `GET /project` 重新選擇）
+  - BR-47：頁面提供供應商及模型選擇器（資料來自 `GET /config/providers`）
+  - BR-48：訊息回覆支援串流顯示（透過 `GET /event` SSE 或輪詢）
+  - BR-49：支援中斷正在進行的 AI 回覆 `POST /session/:id/abort`
+- **狀態**：📋 規劃中（v3.0）
+
+### FR-17：AI Proxy opencode 路由
+
+- **描述**：在 AI Proxy 中新增 opencode serve 代理路由，前端所有 opencode 請求經由 AI Proxy 中轉
+- **觸發條件**：前端發出 `/api/opencode/:serverId/*` 請求
+- **API Contract**：
+  - `GET /api/opencode/:serverId/health` — 健康檢查（對應 opencode `/global/health`）
+  - `GET /api/opencode/:serverId/project` — 列出專案（對應 opencode `/project`）
+  - `GET /api/opencode/:serverId/session` — 列出 session（對應 opencode `/session`）
+  - `POST /api/opencode/:serverId/session` — 建立 session
+  - `PATCH /api/opencode/:serverId/session/:id` — 更新 session
+  - `DELETE /api/opencode/:serverId/session/:id` — 刪除 session
+  - `GET /api/opencode/:serverId/session/:id/message` — 列出訊息
+  - `POST /api/opencode/:serverId/session/:id/message` — 發送訊息
+  - `POST /api/opencode/:serverId/session/:id/abort` — 中斷 session
+  - `GET /api/opencode/:serverId/event` — 事件串流（SSE）
+  - `GET /api/opencode/:serverId/config/providers` — 取得供應商設定
+  - `GET /api/opencode/:serverId/agent` — 列出可用 agent
+- **業務規則**：
+  - BR-50：AI Proxy 儲存 Agent Server 連線設定（位址、認證），請求時自動附加
+  - BR-51：認證資訊不傳給前端，僅在 AI Proxy 內部使用
+  - BR-52：每個 serverId 對應一組 server 連線設定
+  - BR-53：Proxy 轉發時保留原始 HTTP method、headers 與 body
+- **狀態**：📋 規劃中（v3.0）
+
 ---
 
 ## 業務規則摘要
@@ -195,6 +264,28 @@
 | BR-29 | Proxy 預設 port 3001 | FR-13 |
 | BR-30 | 聊天補全全部供應商都做 | FR-13 |
 | BR-31 | 模型查詢 MVP 先做 OpenAI + Ollama | FR-13 |
+| BR-32 | 每個 Agent Server 有唯一 ID，名稱可自訂 | FR-14 |
+| BR-33 | 支援 HTTP Basic Auth（透過 AI Proxy 中轉） | FR-14 |
+| BR-34 | 卡片顯示名稱、位址、連線狀態（綠燈/紅燈） | FR-14 |
+| BR-35 | 展開卡片顯示設定欄位 + 操作按鈕 | FR-14 |
+| BR-36 | 測試連線透過 AI Proxy 呼叫 `/api/opencode/:serverId/health` | FR-14 |
+| BR-37 | 連線成功後自動抓取 project 列表 | FR-14 |
+| BR-38 | App 項目以 project 名稱為標籤 | FR-15 |
+| BR-39 | 點擊 App 項目載入 Chat Bot 頁面，帶入 serverId + projectPath | FR-15 |
+| BR-40 | Agent Server 離線時對應 App 項目顯示離線狀態 | FR-15 |
+| BR-41 | 刪除 Agent Server 時一併移除對應 App Menu 項目 | FR-15 |
+| BR-42 | 頁面左側顯示 session 列表（樹狀結構） | FR-16 |
+| BR-43 | 可建立/重新命名/刪除 session | FR-16 |
+| BR-44 | 點選 session 載入歷史訊息 | FR-16 |
+| BR-45 | 訊息輸入框支援發送文字訊息 | FR-16 |
+| BR-46 | 頁面頂部顯示當前 project 名稱，支援切換 | FR-16 |
+| BR-47 | 頁面提供供應商及模型選擇器 | FR-16 |
+| BR-48 | 訊息回覆支援串流顯示 | FR-16 |
+| BR-49 | 支援中斷正在進行的 AI 回覆 | FR-16 |
+| BR-50 | AI Proxy 儲存 Agent Server 連線設定，請求時自動附加 | FR-17 |
+| BR-51 | 認證資訊僅在 AI Proxy 內部使用，不傳前端 | FR-17 |
+| BR-52 | 每個 serverId 對應一組 server 連線設定 | FR-17 |
+| BR-53 | Proxy 轉發時保留原始 HTTP method、headers 與 body | FR-17 |
 
 ---
 
@@ -206,3 +297,4 @@
 | 2026-07-14 | 1.1 | 新增 FR-11（供應商管理）、FR-12（模型瀏覽器）、FR-13（AI Proxy），BR-14 ~ BR-31 |
 | 2026-07-14 | 1.2 | 修正 BR-19：`?setting_debug=true` 改為加在 `index.html` 後面，query parameter 自動轉發到 iframe |
 | 2026-07-14 | 1.3 | FR-11/12/13 狀態更新為 ✅ 已完成（v2.0 實作完成） |
+| 2026-07-27 | 2.0 | 新增 FR-14（Agent Server 管理）、FR-15（動態 App Menu）、FR-16（Chat Bot 頁面）、FR-17（AI Proxy opencode 路由），BR-32 ~ BR-53 |

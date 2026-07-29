@@ -44,20 +44,22 @@ npm start
 
 **供應商管理**：
 ```
-file:///C:/D/ai_cli/Menu_System/web-menu/pages/provider-management.html
+http://localhost:3001/pages/provider-management.html
 ```
 
 **模型瀏覽器**：
 ```
-file:///C:/D/ai_cli/Menu_System/web-menu/pages/model-browser.html
+http://localhost:3001/pages/model-browser.html
 ```
 
 **Debug Panel 模式**（可選）：
 ```
-file:///C:/D/ai_cli/Menu_System/web-menu/index.html?setting_debug=true
+http://localhost:3001/index.html?setting_debug=true
 ```
 
 > 注意：`?setting_debug=true` 要加在 `index.html` 後面，query parameter 會自動轉發到 iframe 頁面。
+> 
+> ⚠ 2026-07-27 起建議從 `http://localhost:3001/` 開啟頁面（AI Proxy 同時 serve 靜態檔案），取代原本的 `file:///` 路徑。SSE 串流等功能需要同源才能運作。
 
 ---
 
@@ -139,11 +141,12 @@ index.html?setting_debug=true
 start "AI Proxy" cmd /c "cd /d C:\D\ai_cli\Menu_System\ai-proxy && npm start"
 timeout /t 2 /nobreak > nul
 @echo 開啟前端頁面...
-start "" "C:\D\ai_cli\Menu_System\web-menu\index.html"
+start "" "http://localhost:3001/pages/provider-management.html"
 @echo 完成！
 ```
 
-> 如需啟用 Debug Panel，手動將瀏覽器網址改為 `index.html?setting_debug=true`。
+> ⚠ 2026-07-27 起改為開啟 `http://localhost:3001/...`（取代 `file:///`），以支援 SSE 串流等功能。
+> 如需啟用 Debug Panel，手動將瀏覽器網址改為 `http://localhost:3001/index.html?setting_debug=true`。
 
 ---
 

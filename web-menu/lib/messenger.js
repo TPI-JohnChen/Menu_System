@@ -20,6 +20,9 @@ const Messenger = {
         case 'setTitle':
           HeaderManager.setTitle(msg.payload.title);
           break;
+        case 'addDynamicItems':
+          MenuManager.addDynamicItems(msg.payload.parentId, msg.payload.items);
+          break;
       }
     });
   },

@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Bot</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      display: flex; flex-direction: column;
+    }
+
+    .chat-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+      flex-shrink: 0;
+    }
+    .chat-header .project-name { font-weight: 600; font-size: 15px; }
+    .chat-header .spacer { flex: 1; }
+    .chat-header select, .chat-header button {
+      padding: 6px 12px; border: 1px solid var(--color-border);
+      border-radius: 6px; font-size: 13px;
+      background: var(--color-surface); color: var(--color-text); cursor: pointer;
+    }
+    .chat-header button:hover { background: var(--color-menu-hover); }
+
+    .chat-body { display: flex; flex: 1; overflow: hidden; }
+
+    .session-panel {
+      width: 260px; border-right: 1px solid var(--color-border);
+      display: flex; flex-direction: column;
+      background: var(--color-surface);
+      flex-shrink: 0;
+    }
+    .session-panel-header {
+      display: flex; align-items: center; gap: 4px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .session-panel-header .title { flex: 1; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); }
+    .session-panel-header button {
+      width: 28px; height: 28px; border: none; border-radius: 4px;
+      background: transparent; color: var(--color-text-secondary);
+      font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .session-panel-header button:hover { background: var(--color-menu-hover); }
+
+    .session-tree {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+    }
+
+    .session-item {
+      display: flex; align-items: center; padding: 6px 12px 6px 8px;
+      cursor: pointer; font-size: 13px; border-radius: 0;
+      transition: background 0.15s;
+    }
+    .session-item:hover { background: var(--color-menu-hover); }
+    .session-item.active { background: var(--color-menu-active); color: var(--color-menu-active-text); }
+    .session-item .icon { margin-right: 6px; font-size: 14px; flex-shrink: 0; }
+    .session-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-item .actions { display: none; gap: 2px; margin-left: 4px; flex-shrink: 0; }
+    .session-item:hover .actions { display: flex; }
+    .session-item .actions button {
+      width: 20px; height: 20px; border: none; border-radius: 3px;
+      background: transparent; color: var(--color-text-secondary);
+      font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .session-item .actions button:hover { background: rgba(0,0,0,0.1); }
+    .session-item.child { padding-left: 28px; }
+    .session-item .expand-btn {
+      width: 20px; height: 20px; border: none; border-radius: 3px;
+      background: transparent; color: var(--color-text-secondary);
+      font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-right: 2px;
+    }
+    .session-item .expand-btn:hover { background: var(--color-menu-hover); }
+
+    .conversation-panel {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .messages-area {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    .message {
+      display: flex; flex-direction: column; max-width: 85%;
+    }
+    .message.user { align-self: flex-end; align-items: flex-end; }
+    .message.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .message .bubble {
+      padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .message.user .bubble {
+      background: var(--color-primary); color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .message.assistant .bubble {
+      background: var(--color-menu-hover); color: var(--color-text);
+      border-bottom-left-radius: 4px;
+    }
+    .message .role-label { font-size: 11px; color: var(--color-text-secondary); margin: 4px 6px 2px; }
+
+    .input-area {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .input-area textarea {
+      flex: 1; resize: none; padding: 10px 14px; border: 1px solid var(--color-border);
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+      background: var(--color-bg); color: var(--color-text);
+      max-height: 120px; outline: none;
+    }
+    .input-area textarea:focus { border-color: var(--color-primary); }
+    .input-area .send-btn {
+      width: 40px; height: 40px; border: none; border-radius: 50%;
+      background: var(--color-primary); color: white;
+      font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .input-area .send-btn:hover { background: var(--color-primary-hover); }
+    .input-area .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; color: var(--color-text-secondary); font-size: 14px; gap: 8px;
+    }
+    .empty-state .icon { font-size: 48px; }
+
+    .loading-dots::after { content: '...'; animation: dots 1.5s steps(4, end) infinite; }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; z-index: 2000; animation: slideIn 0.3s ease; }
+    .toast.success { background: #28a745; }
+    .toast.error { background: #dc3545; }
+    .toast.info { background: #17a2b8; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .dialog-overlay.active { display: flex; }
+    .dialog { background: var(--color-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; }
+    .dialog h2 { margin: 0 0 16px 0; font-size: 18px; }
+    .dialog input { width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; background: var(--color-surface); color: var(--color-text); }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-primary { background: var(--color-primary); color: white; }
+    .btn-primary:hover { background: var(--color-primary-hover); }
+    .btn-secondary { background: var(--color-text-secondary); color: white; }
+    .btn-secondary:hover { opacity: 0.9; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-danger:hover { background: #c82333; }
+
+    .abort-btn {
+      padding: 4px 12px; border: 1px solid #dc3545; border-radius: 4px;
+      background: transparent; color: #dc3545; font-size: 12px;
+      cursor: pointer; align-self: center; margin-top: -8px;
+    }
+    .abort-btn:hover { background: #dc3545; color: white; }
+
+    @media (max-width: 768px) {
+      .session-panel { width: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-header" id="chatHeader">
+    <span class="project-name" id="projectName"></span>
+    <div class="spacer"></div>
+    <select id="providerSelect"></select>
+    <button id="projectSwitchBtn" title="切換專案">📂</button>
+  </div>
+
+  <div class="chat-body">
+    <div class="session-panel">
+      <div class="session-panel-header">
+        <span class="title" id="sessionTitle"></span>
+        <button id="newSessionBtn" title="新增 Session">＋</button>
+        <button id="refreshSessionBtn" title="重新整理">↻</button>
+      </div>
+      <div class="session-tree" id="sessionTree"></div>
+    </div>
+
+    <div class="conversation-panel">
+      <div class="messages-area" id="messagesArea">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">💬</div>
+          <div id="emptyText"></div>
+        </div>
+      </div>
+      <div class="input-area" id="inputArea">
+        <textarea id="messageInput" rows="1" placeholder=""></textarea>
+        <button class="send-btn" id="sendBtn">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="renameDialog">
+    <div class="dialog">
+      <h2 id="renameTitle"></h2>
+      <input type="text" id="renameInput">
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="renameCancelBtn"></button>
+        <button class="btn btn-primary" id="renameConfirmBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="projectDialog">
+    <div class="dialog">
+      <h2 id="projectDialogTitle"></h2>
+      <div id="projectList"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="projectCancelBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/iframe-client.js"></script>
+  <script src="../lib/opencode-manager.js?v=20260727"></script>
+  <script>
+    (function() {
+      'use strict'
+
+      var T = {
+        'zh-TW': {
+          sessionTitle: 'Sessions',
+          emptySession: '選擇一個 session 開始對話',
+          emptyNoSession: '尚無 session，點擊 ＋ 建立',
+          inputPlaceholder: '輸入訊息...',
+          sendBtn: '▶',
+          newSession: '新增 Session',
+          refresh: '重新整理',
+          rename: '重新命名',
+          del: '刪除',
+          renameTitle: '重新命名 Session',
+          renameBtn: '確認',
+          cancel: '取消',
+          deleteConfirm: '確定刪除此 Session？',
+          projectTitle: '切換專案',
+          loading: '載入中...',
+          toastSent: '已發送',
+          toastError: '發送失敗：',
+          toastRenamed: '已重新命名',
+          toastDeleted: '已刪除',
+          toastCreated: 'Session 已建立',
+          abortBtn: '中斷回覆',
+          toastAborted: '已中斷',
+          modelLabel: 'Select Model'
+        },
+        'en': {
+          sessionTitle: 'Sessions',
+          emptySession: 'Select a session to start chatting',
+          emptyNoSession: 'No sessions yet, click ＋ to create',
+          inputPlaceholder: 'Type a message...',
+          sendBtn: '▶',
+          newSession: 'New Session',
+          refresh: 'Refresh',
+          rename: 'Rename',
+          del: 'Delete',
+          renameTitle: 'Rename Session',
+          renameBtn: 'Confirm',
+          cancel: 'Cancel',
+          deleteConfirm: 'Delete this session?',
+          projectTitle: 'Switch Project',
+          loading: 'Loading...',
+          toastSent: 'Sent',
+          toastError: 'Send failed: ',
+          toastRenamed: 'Renamed',
+          toastDeleted: 'Deleted',
+          toastCreated: 'Session created',
+          abortBtn: 'Abort',
+          toastAborted: 'Aborted',
+          modelLabel: 'Select Model'
+        }
+      }
+
+      var lang = localStorage.getItem('lang') || 'zh-TW'
+      var serverId = ''
+      var worktree = ''
+      var projectDisplayName = ''
+      var sessions = []
+      var currentSessionId = null
+      var isLoading = false
+      var abortController = null
+      var PS_KEY = 'projectSessionMap_'
+
+      function getProjectSessionMap() {
+        try { return JSON.parse(localStorage.getItem(PS_KEY + serverId) || '{}') }
+        catch(e) { return {} }
+      }
+
+      function saveProjectSessionMap(map) {
+        localStorage.setItem(PS_KEY + serverId, JSON.stringify(map))
+      }
+
+      function addSessionToProject(sessionId) {
+        var map = getProjectSessionMap()
+        if (!map[worktree]) map[worktree] = []
+        if (map[worktree].indexOf(sessionId) === -1) map[worktree].push(sessionId)
+        saveProjectSessionMap(map)
+      }
+
+      function removeSessionFromProject(sessionId) {
+        var map = getProjectSessionMap()
+        Object.keys(map).forEach(function(pId) {
+          map[pId] = (map[pId] || []).filter(function(sid) { return sid !== sessionId })
+          if (map[pId].length === 0) delete map[pId]
+        })
+        saveProjectSessionMap(map)
+      }
+
+      var urlParams = new URLSearchParams(window.location.search)
+      serverId = urlParams.get('serverId') || ''
+      worktree = urlParams.get('worktree') || urlParams.get('project') || ''
+      projectDisplayName = worktree.split(/[/\\]/).filter(Boolean).pop() || worktree
+
+      function t() { return T[lang] || T['zh-TW'] }
+
+      function init() {
+        lang = localStorage.getItem('lang') || 'zh-TW'
+        renderStaticText()
+        loadSessions()
+        loadProviders()
+        setupEvents()
+
+        if (projectDisplayName) {
+          document.getElementById('projectName').textContent = projectDisplayName
+        }
+      }
+
+      function renderStaticText() {
+        var tt = t()
+        document.title = projectDisplayName ? 'Chat - ' + projectDisplayName : 'Chat Bot'
+        document.getElementById('sessionTitle').textContent = tt.sessionTitle
+        document.getElementById('messageInput').placeholder = tt.inputPlaceholder
+        document.getElementById('emptyText').textContent = tt.emptyNoSession
+        document.getElementById('renameTitle').textContent = tt.renameTitle
+        document.getElementById('renameConfirmBtn').textContent = tt.renameBtn
+        document.getElementById('renameCancelBtn').textContent = tt.cancel
+        document.getElementById('projectDialogTitle').textContent = tt.projectTitle
+        document.getElementById('projectCancelBtn').textContent = tt.cancel
+      }
+
+      // ========== Session 樹 ==========
+
+      function buildSessionTree(sessions) {
+        var rootMap = {}
+        var childMap = {}
+
+        sessions.forEach(function(s) {
+          rootMap[s.id] = s
+        })
+
+        return sessions
+      }
+
+      function renderSessionTree() {
+        var container = document.getElementById('sessionTree')
+        var tt = t()
+
+        if (!sessions || sessions.length === 0) {
+          container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--color-text-secondary);font-size:13px">' + tt.emptyNoSession + '</div>'
+          return
+        }
+
+        var html = ''
+        sessions.forEach(function(session) {
+          var isActive = session.id === currentSessionId
+          var icon = '💬'
+          html += '<div class="session-item' + (isActive ? ' active' : '') + '" data-id="' + session.id + '">' +
+            '<span class="icon">' + icon + '</span>' +
+            '<span class="name">' + escapeHtml(session.title || session.id.slice(0, 8)) + '</span>' +
+            '<span class="actions">' +
+              '<button class="rename-btn" title="' + tt.rename + '">✏</button>' +
+              '<button class="delete-btn" title="' + tt.del + '">✕</button>' +
+            '</span>' +
+          '</div>'
+        })
+        container.innerHTML = html
+      }
+
+      async function loadSessions() {
+        if (!serverId) return
+        var container = document.getElementById('sessionTree')
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--color-text-secondary)">' + t().loading + '</div>'
+
+        var result = await OpenCodeManager.apiCall(serverId, 'GET', 'session')
+        if (result.success) {
+          var allSessions = Array.isArray(result.data) ? result.data : []
+          var localSessionIds = (getProjectSessionMap()[worktree] || [])
+
+          sessions = allSessions.filter(function(s) {
+            if (worktree && s.directory && s.directory.indexOf(worktree) === 0) return true
+            if (localSessionIds.indexOf(s.id) !== -1) return true
+            return false
+          })
+
+          var tt = t()
+          if (sessions.length === 0) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--color-text-secondary);font-size:13px">' + tt.emptyNoSession + '</div>'
+            document.getElementById('emptyText').textContent = tt.emptyNoSession
+            return
+          }
+          renderSessionTree()
+
+          if (!currentSessionId && sessions.length > 0) {
+            selectSession(sessions[0].id)
+          }
+        } else {
+          showToast(t().toastError + (result.error || ''), 'error')
+        }
+      }
+
+      async function selectSession(sessionId) {
+        currentSessionId = sessionId
+        renderSessionTree()
+        await loadMessages(sessionId)
+        restoreDropdownFromSession(sessionId)
+      }
+
+      function restoreDropdownFromSession(sessionId) {
+        var session = sessions.find(function(s) { return s.id === sessionId })
+        if (!session || !session.model) return
+        var mId = session.model.modelID || session.model.id || ''
+        var pId = session.model.providerID || ''
+        if (!mId || !pId) return
+        var select = document.getElementById('providerSelect')
+        var opts = select.querySelectorAll('option')
+        for (var i = 0; i < opts.length; i++) {
+          if (opts[i].value === mId && opts[i].dataset && opts[i].dataset.provider === pId) {
+            opts[i].selected = true
+            break
+          }
+        }
+      }
+
+      // ========== 訊息 ==========
+
+      async function loadMessages(sessionId) {
+        if (!sessionId) return
+        var container = document.getElementById('messagesArea')
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--color-text-secondary)">' + t().loading + '</div>'
+
+        var msgPath = 'session/' + sessionId + '/message?limit=50'
+        var result = await OpenCodeManager.apiCall(serverId, 'GET', msgPath)
+        if (result.success) {
+          renderMessages(result.data)
+        } else {
+          container.innerHTML = '<div class="empty-state"><div class="icon">💬</div><div>' + t().emptySession + '</div></div>'
+        }
+      }
+
+      function renderMessages(data) {
+        var container = document.getElementById('messagesArea')
+
+        var messages = []
+        if (Array.isArray(data)) {
+          messages = data
+        } else if (data && typeof data === 'object') {
+          messages = data.messages || data.info ? [data] : []
+        }
+
+        if (messages.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="icon">💬</div><div>' + t().emptySession + '</div></div>'
+          return
+        }
+
+        var html = ''
+        messages.forEach(function(msg) {
+          var role = msg.role || (msg.info ? msg.info.role : 'user')
+          var content = ''
+          if (msg.parts && Array.isArray(msg.parts)) {
+            content = msg.parts.map(function(p) { return p.text || '' }).join('')
+          } else if (msg.content) {
+            content = msg.content
+          } else if (msg.info && msg.info.content) {
+            content = msg.info.content
+          }
+
+          if (content && role !== 'system') {
+            var metaParts = []
+            if (role === 'assistant' && msg.info) {
+              var mId = msg.info.modelID || (msg.info.model && msg.info.model.modelID) || ''
+              var pId = msg.info.providerID || (msg.info.model && msg.info.model.providerID) || ''
+              if (mId) metaParts.push((pId ? pId + '/' : '') + mId)
+
+              if (msg.info.time && msg.info.time.created && msg.info.time.completed) {
+                var sec = (msg.info.time.completed - msg.info.time.created) / 1000
+                metaParts.push((sec >= 10 ? Math.round(sec) : sec.toFixed(1)) + 's')
+              }
+            }
+
+            html += '<div class="message ' + role + '">' +
+              '<div class="role-label">' + role + (metaParts.length ? ' · ' + escapeHtml(metaParts.join(' · ')) : '') + '</div>' +
+              '<div class="bubble">' + escapeHtml(content) + '</div>' +
+            '</div>'
+          }
+        })
+
+        container.innerHTML = html
+        container.scrollTop = container.scrollHeight
+      }
+
+      async function sendMessage() {
+        var input = document.getElementById('messageInput')
+        var text = input.value.trim()
+        if (!text || !currentSessionId) return
+
+        var tt = t()
+        input.value = ''
+        isLoading = true
+        document.getElementById('sendBtn').disabled = true
+
+        var container = document.getElementById('messagesArea')
+
+        var selectEl = document.getElementById('providerSelect')
+        var mId = selectEl.value || ''
+        var pId = selectEl.selectedOptions && selectEl.selectedOptions[0] ? selectEl.selectedOptions[0].dataset.provider || '' : ''
+
+        var modelLabel = ''
+        if (mId) modelLabel = (pId ? pId + '/' : '') + mId
+
+        var userMsg = '<div class="message user">' +
+          '<div class="role-label">user</div>' +
+          '<div class="bubble">' + escapeHtml(text) + '</div>' +
+        '</div>'
+
+        var loadingMsg = '<div class="message assistant" id="loadingMsg">' +
+          '<div class="role-label">assistant' + (modelLabel ? ' · ' + escapeHtml(modelLabel) : '') + '</div>' +
+          '<div class="bubble loading-dots"></div>' +
+        '</div>'
+
+        container.insertAdjacentHTML('beforeend', userMsg)
+        container.insertAdjacentHTML('beforeend', loadingMsg)
+        container.scrollTop = container.scrollHeight
+
+        // SSE streaming via EventSource
+        var sseReceivedData = false
+        var streamedText = ''
+        var streamBubbleEl = null
+        var streamMsgEl = null
+        var eventSource = null
+
+        if (eventSource) eventSource.close()
+        eventSource = new EventSource('http://localhost:3001/api/opencode/' + serverId + '/event')
+        eventSource.onmessage = function(evt) {
+          try {
+            var data = JSON.parse(evt.data)
+            if (!data.properties || data.properties.sessionID !== currentSessionId) return
+            if (data.type === 'message.part.delta' && data.properties.field === 'text') {
+              if (!streamMsgEl) {
+                sseReceivedData = true
+                var loadingEl = document.getElementById('loadingMsg')
+                if (loadingEl) loadingEl.remove()
+                var html = '<div class="message assistant" id="streamMsg">' +
+                  '<div class="role-label">assistant' + (modelLabel ? ' · ' + escapeHtml(modelLabel) : '') + '</div>' +
+                  '<div class="bubble" id="streamBubble"></div>' +
+                '</div>'
+                container.insertAdjacentHTML('beforeend', html)
+                streamBubbleEl = document.getElementById('streamBubble')
+                streamMsgEl = document.getElementById('streamMsg')
+              }
+              streamedText += data.properties.delta
+              if (streamBubbleEl) {
+                streamBubbleEl.textContent = streamedText
+                container.scrollTop = container.scrollHeight
+              }
+            }
+          } catch(e) {}
+        }
+        eventSource.onerror = function() {
+          // SSE lost — will fall back to POST response
+        }
+
+        // POST message (blocks until response is ready)
+        abortController = new AbortController()
+
+        var body = { parts: [{ type: 'text', text: text }] }
+        if (mId && pId) {
+          body.model = { modelID: mId, providerID: pId }
+        }
+
+        var result = await OpenCodeManager.apiCall(serverId, 'POST', 'session/' + currentSessionId + '/message', body, 120000)
+
+        // Close SSE connection
+        if (eventSource) {
+          eventSource.close()
+          eventSource = null
+        }
+
+        if (sseReceivedData && streamedText) {
+          // SSE streamed successfully — update metadata from POST response
+          var metaParts = []
+          if (result.success && result.data && result.data.info) {
+            var info = result.data.info
+            var mid2 = info.modelID || ''
+            var pid2 = info.providerID || ''
+            if (mid2) metaParts.push((pid2 ? pid2 + '/' : '') + mid2)
+            if (info.time && info.time.created && info.time.completed) {
+              var sec = (info.time.completed - info.time.created) / 1000
+              metaParts.push((sec >= 10 ? Math.round(sec) : sec.toFixed(1)) + 's')
+            }
+          }
+          if (metaParts.length && streamMsgEl) {
+            streamMsgEl.querySelector('.role-label').textContent = 'assistant · ' + metaParts.join(' · ')
+          }
+          var loadingEl = document.getElementById('loadingMsg')
+          if (loadingEl) loadingEl.remove()
+        } else {
+          // SSE didn't work — use POST response directly
+          var loadingEl = document.getElementById('loadingMsg')
+          if (loadingEl) loadingEl.remove()
+
+          if (result.success) {
+            var reply = ''
+            var replyModelLabel = ''
+            if (result.data && result.data.parts) {
+              reply = result.data.parts.map(function(p) { return p.text || '' }).join('')
+            } else if (result.data && result.data.choices) {
+              reply = result.data.choices[0]?.message?.content || ''
+            } else if (result.data && result.data.content) {
+              reply = result.data.content
+            }
+
+            if (result.data && result.data.info) {
+              var mid2 = result.data.info.modelID || ''
+              var pid2 = result.data.info.providerID || ''
+              if (mid2) replyModelLabel = (pid2 ? pid2 + '/' : '') + mid2
+              if (result.data.info.time && result.data.info.time.created && result.data.info.time.completed) {
+                var sec = (result.data.info.time.completed - result.data.info.time.created) / 1000
+                replyModelLabel += (replyModelLabel ? ' · ' : '') + (sec >= 10 ? Math.round(sec) : sec.toFixed(1)) + 's'
+              }
+            }
+
+            if (reply) {
+              var replyHtml = '<div class="message assistant">' +
+                '<div class="role-label">assistant' + (replyModelLabel ? ' · ' + escapeHtml(replyModelLabel) : '') + '</div>' +
+                '<div class="bubble">' + escapeHtml(reply) + '</div>' +
+              '</div>'
+              container.insertAdjacentHTML('beforeend', replyHtml)
+            }
+          } else {
+            showToast(tt.toastError + (result.error || ''), 'error')
+          }
+        }
+
+        isLoading = false
+        document.getElementById('sendBtn').disabled = false
+        container.scrollTop = container.scrollHeight
+      }
+
+      // ========== Providers ==========
+
+      var selectedModel = null
+      var selectedProvider = null
+
+      async function loadProviders() {
+        if (!serverId) return
+        var result = await OpenCodeManager.apiCall(serverId, 'GET', 'config/providers')
+        if (!result.success) return
+
+        var select = document.getElementById('providerSelect')
+        var data = result.data
+        var providers = data && data.providers ? data.providers : []
+        var defaultModel = data && data.default ? data.default : {}
+
+        select.innerHTML = ''
+
+        var emptyOpt = document.createElement('option')
+        emptyOpt.value = ''
+        emptyOpt.textContent = t().modelLabel
+        select.appendChild(emptyOpt)
+
+        if (providers.length === 0 || !Array.isArray(providers)) return
+
+        providers.forEach(function(p) {
+          var pId = p.id || ''
+          var models = p.models || {}
+          var modelKeys = Object.keys(models)
+          if (modelKeys.length === 0) return
+
+          var grp = document.createElement('optgroup')
+          grp.label = p.name || pId
+          select.appendChild(grp)
+
+          modelKeys.forEach(function(mId) {
+            var m = models[mId]
+            var opt = document.createElement('option')
+            opt.value = mId
+            opt.dataset.provider = pId
+            opt.textContent = m.name || mId
+            if (defaultModel[pId] === mId) {
+              opt.textContent += ' ⭐'
+            }
+            grp.appendChild(opt)
+          })
+        })
+
+        if (selectedModel && selectedProvider) {
+          var opts = select.querySelectorAll('option')
+          for (var i = 0; i < opts.length; i++) {
+            if (opts[i].value === selectedModel && opts[i].dataset && opts[i].dataset.provider === selectedProvider) {
+              opts[i].selected = true
+              break
+            }
+          }
+        }
+      }
+
+      // ========== Projects ==========
+
+      async function showProjectSwitch() {
+        var dialog = document.getElementById('projectDialog')
+        var list = document.getElementById('projectList')
+        list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary)">' + t().loading + '</div>'
+        dialog.classList.add('active')
+
+        var result = await OpenCodeManager.apiCall(serverId, 'GET', 'project')
+        list.innerHTML = ''
+        if (result.success && Array.isArray(result.data)) {
+          result.data.forEach(function(p) {
+            var wt = p.worktree || p.path || p.id || ''
+            var displayName = (typeof wt === 'string' ? wt.split(/[/\\]/).filter(Boolean).pop() : '') || wt || String(p)
+            var btn = document.createElement('button')
+            btn.style.cssText = 'display:block;width:100%;padding:10px 12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);cursor:pointer;font-size:14px;margin-bottom:6px;text-align:left'
+            btn.textContent = '📁 ' + displayName
+            if (wt === worktree) {
+              btn.style.borderColor = 'var(--color-primary)'
+              btn.style.fontWeight = '600'
+            }
+            btn.addEventListener('click', function() {
+              window.location.href = 'chat-bot.html?serverId=' + serverId + '&worktree=' + encodeURIComponent(wt)
+            })
+            list.appendChild(btn)
+          })
+        } else {
+          list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--color-text-secondary)">' + (result.error || 'No projects') + '</div>'
+        }
+      }
+
+      // ========== Session CRUD ==========
+
+      async function createSession() {
+        if (!serverId) return
+        var tt = t()
+
+        var select = document.getElementById('providerSelect')
+        var modelId = select.value || ''
+        var providerId = select.selectedOptions && select.selectedOptions[0] ? select.selectedOptions[0].dataset.provider || '' : ''
+
+        var body = { title: new Date().toLocaleString() }
+        if (modelId && providerId) {
+          selectedModel = modelId
+          selectedProvider = providerId
+        }
+
+        var result = await OpenCodeManager.apiCall(serverId, 'POST', 'session', body)
+        if (result.success) {
+          // API creates all sessions with projectID="global" — save local mapping
+          if (result.data && result.data.id) {
+            addSessionToProject(result.data.id)
+          }
+          showToast(tt.toastCreated, 'success')
+          await loadSessions()
+        } else {
+          showToast(tt.toastError + (result.error || ''), 'error')
+        }
+      }
+
+      function promptRename(sessionId) {
+        var dialog = document.getElementById('renameDialog')
+        var input = document.getElementById('renameInput')
+        var session = sessions.find(function(s) { return s.id === sessionId })
+        input.value = session ? (session.title || '') : ''
+        dialog.classList.add('active')
+
+        var onConfirm = function() {
+          var newTitle = input.value.trim()
+          if (!newTitle) return
+          doRename(sessionId, newTitle)
+          dialog.classList.remove('active')
+          cleanup()
+        }
+        var onCancel = function() {
+          dialog.classList.remove('active')
+          cleanup()
+        }
+        function cleanup() {
+          document.getElementById('renameConfirmBtn').removeEventListener('click', onConfirm)
+          document.getElementById('renameCancelBtn').removeEventListener('click', onCancel)
+        }
+        document.getElementById('renameConfirmBtn').addEventListener('click', onConfirm)
+        document.getElementById('renameCancelBtn').addEventListener('click', onCancel)
+        input.focus()
+        input.select()
+      }
+
+      async function doRename(sessionId, title) {
+        var tt = t()
+        var result = await OpenCodeManager.apiCall(serverId, 'PATCH', 'session/' + sessionId, { title: title })
+        if (result.success) {
+          showToast(tt.toastRenamed, 'success')
+          await loadSessions()
+        } else {
+          showToast(tt.toastError + (result.error || ''), 'error')
+        }
+      }
+
+      async function deleteSession(sessionId) {
+        var tt = t()
+        if (!confirm(tt.deleteConfirm)) return
+        var result = await OpenCodeManager.apiCall(serverId, 'DELETE', 'session/' + sessionId)
+        if (result.success) {
+          removeSessionFromProject(sessionId)
+          showToast(tt.toastDeleted, 'success')
+          if (currentSessionId === sessionId) {
+            currentSessionId = null
+          }
+          await loadSessions()
+        } else {
+          showToast(tt.toastError + (result.error || ''), 'error')
+        }
+      }
+
+      // ========== Events ==========
+
+      function setupEvents() {
+        document.getElementById('newSessionBtn').addEventListener('click', createSession)
+        document.getElementById('refreshSessionBtn').addEventListener('click', loadSessions)
+        document.getElementById('projectSwitchBtn').addEventListener('click', showProjectSwitch)
+        document.getElementById('projectCancelBtn').addEventListener('click', function() {
+          document.getElementById('projectDialog').classList.remove('active')
+        })
+
+        document.getElementById('sessionTree').addEventListener('click', function(e) {
+          var btn = e.target.closest('button')
+          if (btn) {
+            var item = btn.closest('.session-item')
+            if (!item) return
+            var id = item.dataset.id
+            if (btn.classList.contains('rename-btn')) { promptRename(id) }
+            else if (btn.classList.contains('delete-btn')) { deleteSession(id) }
+            return
+          }
+
+          var item = e.target.closest('.session-item')
+          if (item) {
+            selectSession(item.dataset.id)
+          }
+        })
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage)
+
+        document.getElementById('messageInput').addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            sendMessage()
+          }
+        })
+
+        document.getElementById('providerSelect').addEventListener('change', function() {
+          selectedModel = null
+          selectedProvider = null
+        })
+
+        MenuAPI.onLanguageChange(function(newLang) {
+          lang = newLang
+          I18n.switchTo(newLang)
+          renderStaticText()
+        })
+      }
+
+      // ========== 工具函式 ==========
+
+      function escapeHtml(text) {
+        var div = document.createElement('div')
+        div.textContent = text
+        return div.innerHTML
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div')
+        toast.className = 'toast ' + (type || 'info')
+        toast.textContent = message
+        document.body.appendChild(toast)
+        setTimeout(function() { toast.remove() }, 3000)
+      }
+
+      document.addEventListener('DOMContentLoaded', init)
+    })()
+  </script>
+</body>
+</html>

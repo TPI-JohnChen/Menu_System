@@ -1,0 +1,58 @@
+[
+  {
+    "id": "srv-ms2yxgiq-oely",
+    "name": "aa",
+    "host": "localhost",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms2yy2dz-u7lz",
+    "name": "OpenCode_Serve",
+    "host": "127.0.01",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms392rga-x1u4",
+    "name": "南市醫",
+    "host": "localhost",
+    "port": 9097,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms39kylb-u076",
+    "name": "OrientAI_產品",
+    "host": "localhost",
+    "port": 4097,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms3c6viw-udzj",
+    "name": "system-architecture>",
+    "host": "127.0.0.1",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms3c7p5d-v8ae",
+    "name": "南市醫-MDM",
+    "host": "127.0.0.1",
+    "port": 9097,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-ms3c8rnd-yh3s",
+    "name": "OrientAI_產品_ppt",
+    "host": "127.0.0.1",
+    "port": 4097,
+    "username": "",
+    "password": ""
+  }
+]

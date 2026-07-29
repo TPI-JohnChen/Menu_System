@@ -43,13 +43,13 @@ if %errorlevel%==0 (
 )
 
 echo [3/3] Opening browser...
-start "" "C:\D\ai_cli\Menu_System\web-menu\pages\provider-management.html"
+start "" "http://localhost:3001/pages/provider-management.html"
 
 echo.
 echo ========================================
 echo   All services started!
+echo   - Web Menu: http://localhost:3001/index.html
 echo   - AI Proxy: http://localhost:3001
-echo   - Browser: Provider Management page
 echo ========================================
 echo.
 pause

@@ -6,14 +6,159 @@
 
 const express = require('express')
 const cors = require('cors')
+const fs = require('fs')
+const path = require('path')
 const fetch = require('node-fetch')
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const SERVERS_FILE = path.join(__dirname, 'servers.json')
 
 // Middleware
 app.use(cors())
 app.use(express.json())
+
+// ========== opencode Server 設定管理 ==========
+
+const serverMap = new Map()
+
+function loadServers() {
+  try {
+    if (fs.existsSync(SERVERS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'))
+      data.forEach(s => serverMap.set(s.id, s))
+      console.log(`[OpenCode] 已載入 ${data.length} 個 server 設定`)
+    }
+  } catch (e) {
+    console.error('[OpenCode] 讀取 servers.json 失敗:', e.message)
+  }
+}
+
+function saveServers() {
+  try {
+    const data = Array.from(serverMap.values())
+    fs.writeFileSync(SERVERS_FILE, JSON.stringify(data, null, 2))
+  } catch (e) {
+    console.error('[OpenCode] 寫入 servers.json 失敗:', e.message)
+  }
+}
+
+function generateId() {
+  return 'srv-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6)
+}
+
+loadServers()
+
+// ========== opencode Server CRUD ==========
+
+app.get('/api/opencode/servers', (req, res) => {
+  const servers = Array.from(serverMap.values()).map(s => ({
+    ...s,
+    password: s.password ? Buffer.from(s.password, 'base64').toString('utf8') : ''
+  }))
+  res.json({ servers })
+})
+
+app.post('/api/opencode/servers', (req, res) => {
+  const { id, name, host, port, username, password } = req.body
+
+  if (!name || !host || !port) {
+    return res.status(400).json({ error: '缺少必要欄位: name, host, port' })
+  }
+
+  const targetId = id || generateId()
+
+  const existing = Array.from(serverMap.values()).find(s =>
+    s.host === host && s.port === port && s.id !== targetId
+  )
+  if (existing) {
+    return res.status(409).json({ error: '相同 host:port 的 server 已存在', existingId: existing.id })
+  }
+
+  const server = {
+    id: targetId,
+    name,
+    host,
+    port: Number(port),
+    username: username || '',
+    password: password ? Buffer.from(password).toString('base64') : ''
+  }
+
+  serverMap.set(server.id, server)
+  saveServers()
+  res.json({ server: { ...server, password: password || '' } })
+})
+
+app.delete('/api/opencode/servers/:serverId', (req, res) => {
+  const { serverId } = req.params
+  if (!serverMap.has(serverId)) {
+    return res.status(404).json({ error: 'server 未找到' })
+  }
+  serverMap.delete(serverId)
+  saveServers()
+  res.json({ success: true })
+})
+
+// ========== opencode 通用轉發路由 ==========
+
+app.all('/api/opencode/:serverId/*', async (req, res) => {
+  const { serverId } = req.params
+  const targetPath = req.params[0] || ''
+
+  const server = serverMap.get(serverId)
+  if (!server) {
+    return res.status(404).json({ error: 'Agent Server 未找到' })
+  }
+
+  const targetUrl = `http://${server.host}:${server.port}/${targetPath}`
+  const headers = { 'Content-Type': 'application/json' }
+
+  if (server.username && server.password) {
+    const decodedPass = Buffer.from(server.password, 'base64').toString('utf8')
+    const encoded = Buffer.from(`${server.username}:${decodedPass}`).toString('base64')
+    headers['Authorization'] = `Basic ${encoded}`
+  }
+
+  try {
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(120000)
+    }
+
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      fetchOptions.body = JSON.stringify(req.body)
+    }
+
+    const response = await fetch(targetUrl, fetchOptions)
+    const contentType = response.headers.get('content-type') || ''
+
+    if (contentType.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      response.body.pipe(res)
+      return
+    }
+
+    res.status(response.status)
+
+    if (contentType.includes('application/json')) {
+      const data = await response.json()
+      res.json(data)
+    } else {
+      const text = await response.text()
+      res.send(text)
+    }
+  } catch (error) {
+    console.error(`[OpenCode] ${serverId} 轉發失敗:`, error.message)
+    if (error.name === 'AbortError') {
+      res.status(504).json({ error: '連線逾時', details: 'Agent Server 無回應 (120s)' })
+    } else {
+      res.status(502).json({ error: '無法連線到 Agent Server', details: error.message })
+    }
+  }
+})
 
 // ========== Health Check ==========
 
@@ -529,10 +674,17 @@ async function chatAnthropic(options) {
   }
 }
 
+// ========== Static Files ==========
+
+const WEB_MENU_DIR = path.join(__dirname, '..', 'web-menu')
+app.use(express.static(WEB_MENU_DIR))
+
 // ========== Start Server ==========
 
 app.listen(PORT, () => {
   console.log(`[AI Proxy] 服務已啟動: http://localhost:${PORT}`)
+  console.log(`[AI Proxy] Web Menu: http://localhost:${PORT}/index.html`)
   console.log(`[AI Proxy] 健康檢查: http://localhost:${PORT}/api/health`)
   console.log(`[AI Proxy] 支援的供應商: openai, ollama, google, lmstudio, anthropic, openai-compatible`)
+  console.log(`[AI Proxy] OpenCode 路由: /api/opencode/:serverId/* (已載入 ${serverMap.size} 個 server)`)
 })

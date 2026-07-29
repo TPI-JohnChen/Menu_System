@@ -21,7 +21,7 @@ index.html?setting_debug=true
 ### 完整 URL 範例
 
 ```
-file:///C:/D/ai_cli/Menu_System/web-menu/index.html?setting_debug=true
+http://localhost:3001/index.html?setting_debug=true
 ```
 
 > 注意：`?setting_debug=true` 要加在 `index.html` 後面，query parameter 會自動轉發到 iframe 頁面（供應商管理）。

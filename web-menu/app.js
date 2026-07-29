@@ -10,4 +10,5 @@
   MenuManager.init();
   ContentManager.init();
   FooterManager.init();
+  OpenCodeManager.init();
 })();

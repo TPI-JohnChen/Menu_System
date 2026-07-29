@@ -27,9 +27,18 @@ window.MENU_CONFIG = [
     ]
   },
   {
+    id: 'agent-app',
+    label: { 'zh-TW': 'Agent App', 'en': 'Agent App' },
+    icon: '🤖',
+    children: [
+      { id: 'agent-server-management', label: { 'zh-TW': 'Agent Server 管理', 'en': 'Agent Server Management' }, path: 'pages/agent-server-management.html' }
+    ],
+    dynamic: true
+  },
+  {
     id: 'ai-agent',
     label: { 'zh-TW': '供應商設定', 'en': 'Provider Settings' },
-    icon: '🤖',
+    icon: '⚙️',
     children: [
       { id: 'provider-management', label: { 'zh-TW': '供應商管理', 'en': 'Provider Management' }, path: 'pages/provider-management.html' },
       { id: 'model-browser', label: { 'zh-TW': '模型瀏覽器', 'en': 'Model Browser' }, path: 'pages/model-browser.html' }
