@@ -147,3 +147,131 @@
 | `docs/superpowers/specs/2026-07-29-menu-design.md` | 設計文件（鎖定後的規格） |
 | `docs/superpowers/specs/2026-07-29-menu-tasks.md` | 實作計畫（4 Phase 共 15 Tasks） |
 | `PROGRESS/John.md` | 本進度記錄 |
+
+---
+
+## 2026-08-02（start-services.bat 搬移 + 測試）
+
+### 完成項目
+- 遵循 `/full-plan` 流程（Phase 0→0.5→1→2→3→Build）
+- 產出設計與實作計畫，並完成實作
+
+### 實作項目
+- **Task 1**：`start-services.bat` 從倉庫根目錄搬移至 `system-architecture\start-services.bat`
+  - 路徑改為 `%~dp0..` 相對推算（repo root 由腳本位置推出），移除硬編絕對路徑
+  - 保留 menu / start / stop / status / exit 互動邏輯，額外加上 node_modules 存在性檢查
+- **Task 2**：新增 `tests\start-services.Tests.ps1`（Pester）
+  - 結構/靜態測試 9 項：位置、路徑有效、`%~dp0` 使用、無殘留絕對路徑、5 label、goto 平衡
+  - `-Live`（或 `$env:SMOKE_LIVE=1`）冒煙測試：啟動 ai-proxy 並以 curl 驗證 `/api/health` = 200，事後清理
+- **Task 3**：更新 `docs\quick-start.md`（新位置 + 相對路徑範例）、`docs\requirements-analysis.md`（新增 FR-18、BR-54~56、changelog 2.1）
+- **Task 4**：自我測試
+  - 靜態測試 9/9 通過
+  - Live 冒煙 10/10 通過
+  - 真實端對端：管線選單「1」執行 .bat → 成功啟動 node proxy → health 200 → 清理後 port 3001 歸還
+
+### 除錯紀錄
+- Pester 3.4 不支援 `Invoke-Pester -Parameters` → 改用 `$env:SMOKE_LIVE=1` 切換 live 模式
+- `Invoke-WebRequest` 對監聽於 IPv6 `::` 的 proxy 連線失敗 → 與 .bat 一致改用 `curl.exe` 做健康檢查
+- label 檢查中 `$_` 變數衝突 → 改用暫存變數 `$label`
+
+### 產出檔案
+| 檔案 | 說明 |
+|------|------|
+| `system-architecture\start-services.bat` | 搬移 + 相對路徑化 |
+| `system-architecture\tests\start-services.Tests.ps1` | 新增 Pester 測試 |
+| `docs\quick-start.md` | 更新位置說明 |
+| `docs\requirements-analysis.md` | 新增 FR-18 / BR-54~56 |
+| `docs\superpowers\specs\2026-08-02-start-services-move-design.md` | 設計文件 |
+| `docs\superpowers\specs\2026-08-02-start-services-move-tasks.md` | 實作計畫 |
+
+---
+
+## 2026-08-02（OpenCode Serve 操作整合 — 平行一級選單）
+
+### 完成項目
+- 遵循 `/full-plan` 四階段流程（Phase 0→0.5→1→2→3→Build）
+- 整合 `OpenCode_Serve_Proj`（單檔 index.html POC）關鍵技術進 Menu System
+
+### 實作項目
+- **Task 1+2**: `ai-proxy/server.js` — 通用轉發路由修正
+  - B1: `targetUrl` 補上 query string（`?directory=` 穿透，約 line 113-115）
+  - B2: SSE 分支移除固定 120s timeout，改 AbortController + `res.on('close')` 終止上游（line 139-151）
+- **Task 3**: `ai-proxy/tests/opencode-proxy.test.js` — Node 整合測試（新增，8/8 PASS）
+  - B1 query string 轉發、B1+ POST body+query 轉發、B2 SSE >120s 不被掐斷、client 斷線上游釋放
+- **Task 4**: `web-menu/lib/opencode-manager.js` — namespace factory 化
+  - `create(namespace, options)` 產生獨立實例；`OpenCodeManager`（v3）向後相容
+  - `OpenCodeServeManager = create('opencode_serve_servers', { parentId: 'opencode-serve', menuMode: 'projects' })`
+  - 新增專案 CRUD；refreshMenu 依 menuMode 產生「server 名 · 專案 label」項目
+- **Task 5**: `web-menu/config/menu.js` — 新增「🔌 OpenCode Serve」一級選單（dynamic）
+- **Task 6**: `web-menu/app.js` — `OpenCodeServeManager.init()`
+- **Task 7**: `web-menu/pages/opencode-serve-management.html` — 卡片式管理頁（server CRUD + 專案管理）
+- **Task 8**: `web-menu/pages/opencode-serve-chat.html` — 單一專案聊天頁（改編 POC：SSE 串流/模型/權限自動放行/中斷/新對話/防爆 log）
+
+### 設計決策（Grill 後鎖定）
+- 連線一律經 ai-proxy 中轉（V1 root 路由 `/session`、`/permission`、`/config/providers`、`/event` + `?directory=`）
+- 新增平行一級選單，保留既有 v3 Agent App
+- 專案手動定義（label + directory），所有 server 專案扁平展開為二級 Menu
+- 聊天頁標題 = `label || basename(worktree)`，不做 API 顯示名查詢
+- 跨 namespace 重複 host:port 接受 proxy 409 限制
+
+### 驗證
+- `node tests/opencode-proxy.test.js` → **8 passed, 0 failed**
+- `node --check` 全部 .js 通過（opencode-manager / app / menu / server / test）
+- 兩個新 HTML 頁面 inline script 語法驗證通過
+- v3 向後相容：agent-server-management.html / chat-bot.html 使用的 `getServers` / `getServerById` / `checkHealth` / `saveServer` / `fetchSessionDirectories` / `refreshMenu` / `deleteServer` / `apiCall` 在 factory 版全部保留
+
+### 端對端驗證（headless Chrome + CDP + mock opencode serve）
+- 管理頁載入：Proxy 連線 🟢 + 空狀態正確，無 console 例外
+- 聊天頁載入：標題「label · server」、SSE 已連線、模型清單（providerID/modelID）載入成功
+- 發送訊息 → busy「執行中…」→ 中斷「已送出中斷」→「待命」
+- 新對話「已建立新 session」→「待命」
+- Menu 動態項目：新增 server+專案 →「server · 專案」出現；刪除 server → 項目移除
+
+### 實作中發現並修正的 Bug
+- **menu.js 用 `const MenuManager`（global lexical binding，不掛 window）**，但 opencode-manager.js 檢查 `global.MenuManager`（= `window.MenuManager`，永遠 undefined）→ 主頁 `init()` 時動態 Menu 項目不呈現（Task 6 驗收失敗）
+  - 修正：新增 `menuManager()` helper，主頁情境用裸識別字 `MenuManager`，iframe 情境回傳 null 走 postMessage（line 371-377 改）
+  - v3 之所以看似正常：管理頁在 iframe 內走 postMessage 分支；主頁 app.js init 走的是 warn 分支
+- **聊天頁 meta 顯示 bug**：原以 `t('btnNew') === 'New Conversation'` 判斷語系，英文模式吃掉 total 時間 → 改為獨立 `doneLabel` key
+
+---
+
+## 2026-08-02（Bug 修復：跨 namespace 重複 host:port 連線失敗）
+
+### RCA
+- 現象：OpenCode Serve 管理輸入 `127.0.0.1:4096` 連線失敗，但舊 Agent Server 管理同組位址成功
+- 根因：兩頁連線邏輯相同（`checkHealth(id)` → `/api/opencode/:serverId/global/health`），但 ai-proxy 的 `serverMap` 為**全域共用**註冊表，`POST /api/opencode/servers` 以 host:port 唯一性檢查（舊程式 server.js:71-76），遇到重複回 409 且**不註冊**新 id
+  - 舊頁：`srv-ms3c6viw-udzj`（127.0.0.1:4096）早已註冊 → proxy 200 ✅
+  - 新頁：OpenCode Serve 管理產生新 id，`syncToProxy()` 被 409 拒絕 → 新 id 僅存在前端 localStorage → proxy 查無此 id → 404 → 連線測試失敗
+- 即「跨 namespace 共用 proxy 全域註冊表」與「重複 host:port 禁止」衝突，設計決策原本接受 409 限制
+
+### 修正
+- `ai-proxy/server.js`：**移除 POST 的 host:port 重複 409 檢查**（BR-64），允許相同 host:port 重複註冊，各 namespace 各自獨立 server id
+- 前端不需修改（兩頁的重複檢查都是針對各自 namespace 的 localStorage）
+- 整合測試新增 **C1**（重複 host:port 可註冊 + 各自轉發正常）
+
+### 驗證
+- `node tests/opencode-proxy.test.js` → **10 passed, 0 failed**（原 8 項 + C1 2 項）
+- 端對端實證：註冊第二個 `127.0.0.1:4096` 成功（新 id），health 走 proxy 200，舊 id 仍可用
+- 文件同步：requirements-analysis.md（BR-64、FR-19 ✅、changelog 2.3）、tasks 檔（Grill 決策更新）
+
+### 產出檔案
+| 檔案 | 說明 |
+|------|------|
+| `ai-proxy/server.js` | 移除 host:port 重複 409 檢查 |
+| `ai-proxy/tests/opencode-proxy.test.js` | 新增 C1 測試（現 10 項） |
+| `docs/requirements-analysis.md` | BR-64、FR-19 ✅、changelog 2.3 |
+| `docs/superpowers/specs/2026-08-02-opencode-serve-menu-tasks.md` | Grill 決策更新 |
+
+### 產出檔案
+| 檔案 | 說明 |
+|------|------|
+| `docs/requirements-analysis.md` | 新增 FR-19 / BR-57~63、FR-14~17 標 ✅、changelog 2.2 |
+| `docs/superpowers/specs/2026-08-02-opencode-serve-menu-design.md` | 設計文件 |
+| `docs/superpowers/specs/2026-08-02-opencode-serve-menu-tasks.md` | 實作計畫（9 Tasks + Grill 決策） |
+| `ai-proxy/server.js` | B1/B2 修正 |
+| `ai-proxy/tests/opencode-proxy.test.js` | 整合測試（8 項） |
+| `web-menu/lib/opencode-manager.js` | factory 化 |
+| `web-menu/config/menu.js` | 新一級選單 |
+| `web-menu/app.js` | 初始化 |
+| `web-menu/pages/opencode-serve-management.html` | 管理頁 |
+| `web-menu/pages/opencode-serve-chat.html` | 聊天頁 |

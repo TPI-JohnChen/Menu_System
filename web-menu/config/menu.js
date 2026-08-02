@@ -36,6 +36,15 @@ window.MENU_CONFIG = [
     dynamic: true
   },
   {
+    id: 'opencode-serve',
+    label: { 'zh-TW': 'OpenCode Serve', 'en': 'OpenCode Serve' },
+    icon: '🔌',
+    children: [
+      { id: 'opencode-serve-management', label: { 'zh-TW': 'OpenCode Serve 管理', 'en': 'OpenCode Serve Management' }, path: 'pages/opencode-serve-management.html' }
+    ],
+    dynamic: true
+  },
+  {
     id: 'ai-agent',
     label: { 'zh-TW': '供應商設定', 'en': 'Provider Settings' },
     icon: '⚙️',

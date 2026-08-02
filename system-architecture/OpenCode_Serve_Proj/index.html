@@ -1,0 +1,1185 @@
+<!doctype html>
+<!--
+  OpenCode Pure-HTML Chat (SSE POC)
+
+  連線目標:已預熱的 `opencode serve`
+  啟動指令:
+    1) opencode serve --port 4096
+    2) 以此目錄跑靜態伺服器(file:// 會被 CORS 擋):
+         python -m http.server 8000     (或 npx serve .)
+    3) 瀏覽器開啟 http://localhost:8000/index.html
+  頁面載入時即會為每個專案建立 session 並連上 SSE —— 即「預熱」。
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenCode Chat</title>
+<style>
+  :root {
+    --bg: #1a1b1e;
+    --panel: #24262b;
+    --border: #33363d;
+    --text: #e6e6e6;
+    --muted: #9aa0a6;
+    --accent: #4c9aff;
+    --user-bubble: #2c3a52;
+    --error: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  #status { font-size: 12px; color: var(--muted); }
+  #status.online { color: #7bd88f; }
+  #status.busy { color: var(--accent); }
+  #status.error { color: var(--error); }
+  #nowdir {
+    font-size: 11px;
+    color: var(--muted);
+    background: #2a2c31;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 8px;
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #hint {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 16px;
+    background: #202226;
+    border-bottom: 1px solid var(--border);
+  }
+  #interrupt-btn, #new-btn, #add-project-btn {
+    background: #3a3d44;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  #interrupt-btn { margin-left: auto; }
+  #new-btn { background: #2c3a52; }
+  #add-project-btn { border-style: dashed; color: var(--accent); }
+  #model-select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    max-width: 240px;
+    font-size: 12px;
+  }
+  #tabs { display: flex; gap: 6px; padding: 8px 16px 0; }
+  #tabs button {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #tabs button.active { color: var(--text); border-color: var(--accent); background: var(--panel); }
+  #tabs button .dir { font-size: 11px; color: var(--muted); display: block; }
+  #add-project-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 16px 4px;
+  }
+  #add-project-form.hidden { display: none; }
+  #add-project-form input {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 13px;
+    min-width: 0;
+  }
+  #add-project-form #new-dir { flex: 1; }
+  #add-project-form button {
+    background: #2c3a52;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .tab-x {
+    margin-left: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    font-weight: 700;
+    user-select: none;
+    font-size: 13px;
+  }
+  .tab-x:hover { color: var(--error); }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 85%; }
+  .msg.user { align-self: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+  .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .bubble {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--user-bubble); }
+  .part-text { white-space: pre-wrap; }
+  .part-reasoning {
+    color: var(--muted);
+    font-size: 12px;
+    border-left: 2px solid var(--border);
+    padding-left: 8px;
+    margin: 4px 0;
+    white-space: pre-wrap;
+  }
+  .part-tool {
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 4px 0;
+    white-space: pre-wrap;
+  }
+  .part-tool .tname { color: var(--text); }
+  .part-md p { margin: 0 0 8px; }
+  .part-md h1, .part-md h2, .part-md h3, .part-md h4, .part-md h5, .part-md h6 {
+    margin: 12px 0 6px; line-height: 1.3; font-weight: 600;
+  }
+  .part-md ul, .part-md ol { margin: 4px 0 8px; padding-left: 22px; }
+  .part-md li { margin: 2px 0; }
+  .part-md pre {
+    background: #141518; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; overflow-x: auto; margin: 6px 0 10px;
+  }
+  .part-md code {
+    font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 12.5px;
+  }
+  .part-md :not(pre) > code {
+    background: #141518; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+  }
+  .part-md table {
+    border-collapse: collapse; margin: 6px 0 10px; font-size: 13px; width: 100%;
+  }
+  .part-md th, .part-md td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+  .part-md th { background: #2a2c31; font-weight: 600; }
+  .part-md blockquote { border-left: 3px solid var(--border); margin: 6px 0; padding: 2px 12px; color: var(--muted); }
+  .part-md a { color: var(--accent); text-decoration: none; }
+  .part-md hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  #log {
+    font-size: 11px;
+    color: var(--muted);
+    max-height: 110px;
+    overflow-y: auto;
+    flex: none;
+    padding: 4px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+  }
+  #log .perm { color: #e0b86a; }
+  #interrupt-btn.flash { border-color: var(--error); color: var(--error); }
+  form#composer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+  }
+  #input {
+    flex: 1;
+    resize: none;
+    height: 52px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+  }
+  #input:focus { outline: none; border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: default; }
+  .placeholder { color: var(--muted); text-align: center; margin-top: 40px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OpenCode Chat</h1>
+  <span id="nowdir" title="目前執行的工作目錄"></span>
+  <span id="status">連線中…</span>
+  <select id="model-select" title="選擇傳送時使用的模型(可留空使用預設)"><option value="">預設模型</option></select>
+  <button id="new-btn" title="建立新的 session(新的對話)">新對話</button>
+  <button id="add-project-btn" title="動態加入新的專案目錄">＋ 專案</button>
+  <button id="interrupt-btn">中斷</button>
+</header>
+<div id="tabs"></div>
+<div id="add-project-form" class="hidden">
+  <input id="new-dir" placeholder="專案目錄路徑,例:C:\work\my_project" spellcheck="false" />
+  <input id="new-label" placeholder="分頁名稱(留空取目錄名)" spellcheck="false" />
+  <button type="button" id="add-ok">加入</button>
+  <button type="button" id="add-cancel">取消</button>
+</div>
+<div id="hint" class="hint">每個分頁 = 一個專案目錄。送出前先選對應分頁;傳送「列出你的 skill」即可查看該專案自己的 skills。</div>
+<div id="messages"></div>
+<div id="log"></div>
+<form id="composer">
+  <textarea id="input" placeholder="輸入訊息… (Enter 傳送, Shift+Enter 換行)" autofocus></textarea>
+  <button id="send-btn" type="submit">傳送</button>
+</form>
+
+<script>
+"use strict"
+
+/* ===== 設定區 ===== */
+const CONFIG = {
+  // opencode serve 的位址
+  baseUrl: "http://127.0.0.1:4096",
+  // 兩個專案,label 顯示於分頁,directory 為執行工作目錄
+  projects: [
+    { label: "專案 A-Fast_Agent", directory: "C:\\D\\ai_cli\\Fast_Agent" },
+    { label: "專案 B-寫三總_NGS_報價", directory: "C:\\D\\ai_cli\\三總_NGS_報價" },
+  ],
+  // permission.asked → 自動回覆 once 放行;false 則需手動點選
+  autoAllowOnce: true,
+}
+/* ================== */
+
+const $ = (sel) => document.querySelector(sel)
+const statusEl = $("#status")
+const nowdirEl = $("#nowdir")
+const messagesEl = $("#messages")
+const logEl = $("#log")
+const tabsEl = $("#tabs")
+const interruptBtn = $("#interrupt-btn")
+const newBtn = $("#new-btn")
+const addProjectBtn = $("#add-project-btn")
+const addProjectForm = $("#add-project-form")
+const newDirEl = $("#new-dir")
+const newLabelEl = $("#new-label")
+const addOkBtn = $("#add-ok")
+const addCancelBtn = $("#add-cancel")
+const modelSel = $("#model-select")
+const inputEl = $("#input")
+const sendBtn = $("#send-btn")
+
+const states = CONFIG.projects.map((p, i) => ({
+  index: i,
+  label: p.label,
+  directory: p.directory,
+  sessionID: null,
+  es: null,
+  messages: new Map(), // messageID -> { info, parts: Map<partID, part>, order: [], meta? }
+  busy: false,
+  turnStart: null,   // performance.now() 於送出 prompt
+  ttft: null,        // 首次 token 毫秒
+  turnEnd: null,     // 完成時毫秒
+  modelRef: null,
+  model: null,       // { providerID, modelID } | null,使用者指定的模型
+  lastAssistantID: null,
+  replied: new Set(), // 已自動放行的 permission request id
+}))
+let active = states[0]
+
+// 動態加入的專案(非寫死於 CONFIG),以 localStorage 持久化,重載後重現。
+const customProjects = []
+const STORAGE_KEY = "opencodeChat_customProjects"
+
+function persistCustom() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(customProjects)) } catch { /* 忽略 */ }
+}
+
+function loadCustom() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeDir(d) {
+  return String(d || "").trim().replace(/[\\/]+$/, "")
+}
+
+function baseNameOf(d) {
+  const parts = d.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || d
+}
+
+function setStatus(text, cls) {
+  statusEl.textContent = text
+  statusEl.className = cls || ""
+}
+
+async function api(url, options = {}) {
+  const res = await fetch(`${CONFIG.baseUrl}${url}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  })
+  if (!res.ok) {
+    let body = ""
+    try { body = await res.text() } catch { /* ignore */ }
+    throw new Error(`${res.status} ${res.statusText}${body ? " — " + body : ""}`)
+  }
+  if (res.status === 204) return null
+  const ct = res.headers.get("content-type") || ""
+  return ct.includes("json") ? res.json() : res.text()
+}
+
+const LOG_DEDUP_MS = 2500
+const LOG_MAX = 60
+const logSeen = new Map() // text -> 最近記錄時間(ms),用於相同訊息去重
+
+function addLog(text, cls) {
+  const now = performance.now()
+  const last = logSeen.get(text)
+  if (last !== undefined && now - last < LOG_DEDUP_MS) return
+  logSeen.set(text, now)
+  const div = document.createElement("div")
+  div.className = cls || ""
+  div.textContent = text
+  logEl.appendChild(div)
+  while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+function renderMessage(st, mid) {
+  const entry = st.messages.get(mid)
+  if (!entry) return
+  const container = document.createElement("div")
+  container.className = "msg " + (entry.info?.role === "user" ? "user" : "assistant")
+
+  const who = document.createElement("div")
+  who.className = "who"
+  who.textContent = entry.info?.role === "user" ? "你" : (entry.info?.title || "Assistant")
+  container.appendChild(who)
+
+  const bubble = document.createElement("div")
+  bubble.className = "bubble"
+  for (const part of entry.order) {
+    const p = entry.parts.get(part)
+    if (!p) continue
+    const el = renderPart(p)
+    if (el) bubble.appendChild(el)
+  }
+  if (entry.order.length === 0 && entry.info?.role === "user") {
+    bubble.textContent = "(傳送中…)"
+  }
+  container.appendChild(bubble)
+  if (entry.meta) {
+    const meta = document.createElement("div")
+    meta.className = "meta"
+    const bits = []
+    if (entry.meta.model) bits.push(`模型 ${entry.meta.model}`)
+    bits.push(`TTFT ${fmtMs(entry.meta.ttft)}`)
+    bits.push(`完成 ${fmtMs(entry.meta.total)}`)
+    meta.textContent = bits.join(" · ")
+    container.appendChild(meta)
+  }
+  messagesEl.appendChild(container)
+}
+
+function fmtMs(ms) {
+  if (ms == null) return "—"
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`
+}
+
+function renderMarkdown(src) {
+  const frag = document.createDocumentFragment()
+  const lines = src.split("\n")
+  let i = 0
+  let para = []
+  const flushPara = () => {
+    if (para.length === 0) return
+    const p = document.createElement("p")
+    mdInline(para.join("\n"), p)
+    frag.appendChild(p)
+    para = []
+  }
+  const splitCells = (l) => {
+    const parts = l.split("|").map((s) => s.trim())
+    if (parts[0] === "") parts.shift()
+    if (parts.length && parts[parts.length - 1] === "") parts.pop()
+    return parts
+  }
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = line.trim()
+    if (trimmed === "") { flushPara(); i++; continue }
+    if (line.includes("|") && i + 1 < lines.length && /^\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) && lines[i + 1].includes("|")) {
+      flushPara()
+      const table = document.createElement("table")
+      const thead = document.createElement("thead")
+      const hrow = document.createElement("tr")
+      for (const h of splitCells(line)) { const th = document.createElement("th"); mdInline(h, th); hrow.appendChild(th) }
+      thead.appendChild(hrow)
+      const tbody = document.createElement("tbody")
+      i += 2
+      while (i < lines.length && lines[i].trim() !== "" && lines[i].includes("|")) {
+        const r = document.createElement("tr")
+        for (const c of splitCells(lines[i])) { const td = document.createElement("td"); mdInline(c, td); r.appendChild(td) }
+        tbody.appendChild(r)
+        i++
+      }
+      table.appendChild(thead)
+      table.appendChild(tbody)
+      frag.appendChild(table)
+      continue
+    }
+    if (/^```/.test(trimmed)) {
+      flushPara()
+      const lang = trimmed.slice(3).trim()
+      const buf = []
+      i++
+      while (i < lines.length && !/^```/.test(lines[i].trim())) { buf.push(lines[i]); i++ }
+      i++
+      const pre = document.createElement("pre")
+      const code = document.createElement("code")
+      if (lang) code.className = "lang-" + lang
+      code.textContent = buf.join("\n")
+      pre.appendChild(code)
+      frag.appendChild(pre)
+      continue
+    }
+    const hm = /^(#{1,6})\s+(.*)$/.exec(trimmed)
+    if (hm) {
+      flushPara()
+      const h = document.createElement("h" + hm[1].length)
+      mdInline(hm[2], h)
+      frag.appendChild(h)
+      i++
+      continue
+    }
+    if (/^(\s*(-{3,}|\*{3,})\s*)$/.test(trimmed) && !trimmed.includes("|")) {
+      flushPara()
+      frag.appendChild(document.createElement("hr"))
+      i++
+      continue
+    }
+    if (/^>\s?/.test(line)) {
+      flushPara()
+      const bqLines = []
+      while (i < lines.length && /^>\s?/.test(lines[i])) { bqLines.push(lines[i].replace(/^>\s?/, "")); i++ }
+      const bq = document.createElement("blockquote")
+      mdInline(bqLines.join("\n"), bq)
+      frag.appendChild(bq)
+      continue
+    }
+    if (/^\s*[-*+]\s+/.test(line)) {
+      flushPara()
+      const ul = document.createElement("ul")
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        const li = document.createElement("li")
+        mdInline(lines[i].replace(/^\s*[-*+]\s+/, ""), li)
+        ul.appendChild(li)
+        i++
+      }
+      frag.appendChild(ul)
+      continue
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      flushPara()
+      const ol = document.createElement("ol")
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        const li = document.createElement("li")
+        mdInline(lines[i].replace(/^\s*\d+\.\s+/, ""), li)
+        ol.appendChild(li)
+        i++
+      }
+      frag.appendChild(ol)
+      continue
+    }
+    para.push(line)
+    i++
+  }
+  flushPara()
+  return frag
+}
+
+function mdInline(src, root) {
+  const pushText = (t) => { if (t) root.appendChild(document.createTextNode(t)) }
+  let i = 0
+  while (i < src.length) {
+    const c = src[i]
+    if (c === "`") {
+      let j = i + 1
+      while (j < src.length && src[j] !== "`") j++
+      if (j < src.length) {
+        const code = document.createElement("code")
+        code.textContent = src.slice(i + 1, j)
+        root.appendChild(code)
+        i = j + 1
+      } else { pushText(src.slice(i)); break }
+      continue
+    }
+    if (c === "*") {
+      const m = src.startsWith("**", i) ? "**" : "*"
+      const close = src.indexOf(m, i + m.length)
+      if (close === -1) { pushText(src.slice(i)); break }
+      const inner = document.createElement(m === "**" ? "strong" : "em")
+      mdInline(src.slice(i + m.length, close), inner)
+      root.appendChild(inner)
+      i = close + m.length
+      continue
+    }
+    if (c === "[") {
+      const closeB = src.indexOf("]", i)
+      const paren = closeB !== -1 && src[closeB + 1] === "("
+      const closeP = paren ? src.indexOf(")", closeB) : -1
+      if (paren && closeP !== -1) {
+        const label = src.slice(i + 1, closeB)
+        const url = src.slice(closeB + 2, closeP)
+        if (/^https?:/i.test(url)) {
+          const a = document.createElement("a")
+          a.href = url
+          a.target = "_blank"
+          a.rel = "noopener"
+          a.textContent = label
+          root.appendChild(a)
+        } else {
+          pushText(label)
+        }
+        i = closeP + 1
+        continue
+      }
+    }
+    const next = src.slice(i)
+    const stop = next.search(/[`*[]/)
+    if (stop === -1) { pushText(next); break }
+    if (stop > 0) pushText(next.slice(0, stop))
+    i += stop
+  }
+}
+
+function truncate(s, n) {
+  if (typeof s !== "string") return s
+  return s.length > n ? s.slice(0, n) + "\n…(已截斷)" : s
+}
+
+function renderPart(part) {
+  let el = document.createElement("div")
+  switch (part.type) {
+    case "text":
+      el.className = "part-md"
+      el.appendChild(renderMarkdown(part.text || ""))
+      break
+    case "reasoning":
+      el.className = "part-reasoning"
+      el.textContent = part.text || ""
+      break
+    case "tool": {
+      el.className = "part-tool"
+      const st = part.state || {}
+      const status = st.status || ""
+      const title = st.title || ""
+      el.textContent = `[工具] ${part.tool || part.callID || "?"}${title ? " — " + title : ""} (${status})`
+      if (status === "completed" && typeof st.output === "string" && st.output) {
+        const out = document.createElement("pre")
+        out.className = "tool-out"
+        out.textContent = truncate(st.output, 2000)
+        el.appendChild(out)
+      }
+      break
+    }
+    case "file": {
+      el.className = "part-tool"
+      const link = document.createElement("a")
+      link.href = part.url || "#"
+      link.target = "_blank"
+      link.rel = "noopener"
+      link.textContent = `[檔案] ${part.filename || part.url || ""}`
+      el.appendChild(link)
+      break
+    }
+    case "agent":
+      el.className = "part-tool"
+      el.textContent = `[Agent 切換] ${part.agent || part.name || ""}`
+      break
+    case "subtask":
+      el.className = "part-tool"
+      el.textContent = `[子任務 → ${part.agent || ""}] ${part.description || part.prompt || ""}`
+      break
+    case "patch":
+      el.className = "part-tool"
+      el.textContent = `[變更] ${(part.files || []).join(", ") || part.hash || ""}`
+      break
+    // 內部運作節點,不顯示
+    default:
+      el = null
+  }
+  return el
+}
+
+function renderAll() {
+  messagesEl.innerHTML = ""
+  for (const mid of active.messages.keys()) renderMessage(active, mid)
+  if (active.messages.size === 0) {
+    const p = document.createElement("div")
+    p.className = "placeholder"
+    p.textContent = `${active.label} — 尚未有訊息`
+    messagesEl.appendChild(p)
+  }
+  messagesEl.scrollTop = messagesEl.scrollHeight
+}
+
+function upsertMessage(st, info) {
+  if (!info || !info.id) return
+  if (!st.messages.has(info.id)) {
+    st.messages.set(info.id, { info, parts: new Map(), order: [] })
+  } else {
+    st.messages.get(info.id).info = info
+  }
+}
+
+function upsertPart(st, part) {
+  if (!part || !part.id || !part.messageID) return
+  const entry = st.messages.get(part.messageID)
+  if (!entry) return
+  if (!entry.parts.has(part.id)) entry.order.push(part.id)
+  entry.parts.set(part.id, part)
+}
+
+function markTtft(st) {
+  if (st.turnStart != null && st.ttft === null) st.ttft = performance.now() - st.turnStart
+}
+
+function completeTurn(st) {
+  if (st.turnStart != null) {
+    st.turnEnd = performance.now() - st.turnStart
+    if (st.lastAssistantID) {
+      const e = st.messages.get(st.lastAssistantID)
+      if (e) e.meta = { model: st.modelRef, ttft: st.ttft, total: st.turnEnd }
+    }
+  }
+  if (st.busy) {
+    st.busy = false
+    if (active === st) {
+      setStatus("待命", "online")
+      sendBtn.disabled = false
+    }
+  }
+  if (active === st) renderAll()
+}
+
+function handleEvent(st, evt) {
+  const props = evt.properties || {}
+  const sid = props.sessionID || props.info?.sessionID || props.part?.sessionID
+  if (sid !== undefined && sid !== st.sessionID) return
+  switch (evt.type) {
+    case "message.updated":
+      upsertMessage(st, props.info)
+      if (props.info?.role === "assistant") {
+        st.lastAssistantID = props.info.id
+        if (props.info.modelID) st.modelRef = props.info.modelID
+      }
+      if (active === st) renderAll()
+      break
+    case "message.part.updated":
+      upsertPart(st, props.part)
+      if (props.part?.type === "text" || props.part?.type === "reasoning") markTtft(st)
+      if (active === st) renderAll()
+      break
+    case "message.part.delta": {
+      // 串流文字增量;若尚未有該 part 先建立暫存
+      if (props.field === "text" && typeof props.delta === "string") {
+        markTtft(st)
+        const entry = st.messages.get(props.messageID)
+        if (entry && entry.parts.has(props.partID)) {
+          entry.parts.get(props.partID).text = (entry.parts.get(props.partID).text || "") + props.delta
+        } else {
+          let agg = st.messages.get(props.messageID)
+          if (!agg) {
+            upsertMessage(st, { id: props.messageID, role: "assistant" })
+            agg = st.messages.get(props.messageID)
+          }
+          if (agg && !agg.parts.has(props.partID)) {
+            agg.parts.set(props.partID, { id: props.partID, messageID: props.messageID, type: "text", text: "" })
+            agg.order.push(props.partID)
+          }
+          if (agg && agg.parts.has(props.partID)) {
+            agg.parts.get(props.partID).text += props.delta
+          }
+        }
+      }
+      if (active === st) renderAll()
+      break
+    }
+    case "message.part.removed": {
+      const entry = st.messages.get(props.messageID)
+      if (entry) {
+        entry.parts.delete(props.partID)
+        entry.order = entry.order.filter((id) => id !== props.partID)
+      }
+      if (active === st) renderAll()
+      break
+    }
+    case "permission.asked":
+      addLog(`[權限請求] ${props.permission} ${(props.patterns || []).join(" ") || ""}`, "perm")
+      if (CONFIG.autoAllowOnce && props.id) {
+        replyPermission(st, props.id, "once")
+      }
+      break
+    case "session.idle":
+      completeTurn(st)
+      break
+    case "session.status":
+      if (props.status?.type === "idle") completeTurn(st)
+      break
+    default:
+      break
+  }
+}
+
+async function replyPermission(st, requestID, reply) {
+  try {
+    await api(`/permission/${requestID}/reply?directory=${encodeURIComponent(st.directory)}`, {
+      method: "POST",
+      body: JSON.stringify({ reply }),
+    })
+    addLog(`  已回覆 ${reply}`, "perm")
+  } catch (err) {
+    addLog(`  回覆失敗:${err.message}`, "perm")
+  }
+}
+
+// /event 串流不會送 permission.asked,因此輪詢 pending 清單自動放行
+async function autoAllowPending(st) {
+  if (!st.sessionID) return
+  let pending
+  try {
+    pending = await api(`/permission?directory=${encodeURIComponent(st.directory)}`)
+  } catch {
+    return
+  }
+  if (!Array.isArray(pending)) return
+  for (const req of pending) {
+    if (req.sessionID !== st.sessionID || st.replied.has(req.id)) continue
+    st.replied.add(req.id)
+    if (CONFIG.autoAllowOnce) {
+      addLog(`[權限請求] ${req.permission} ${(req.patterns || []).join(" ") || ""}`, "perm")
+      replyPermission(st, req.id, "once")
+    }
+  }
+}
+
+function connect(st) {
+  const es = new EventSource(
+    `${CONFIG.baseUrl}/event?directory=${encodeURIComponent(st.directory)}`,
+  )
+  st.es = es
+  es.onopen = () => {
+    if (active === st) setStatus("已連線(預熱)", "online")
+    addLog(`${st.label}: SSE 已連線`)
+  }
+  es.onmessage = (ev) => {
+    let payload
+    try {
+      payload = JSON.parse(ev.data)
+    } catch {
+      return
+    }
+    handleEvent(st, payload)
+  }
+  es.onerror = () => {
+    if (active === st) setStatus("SSE 連線中斷,自動重連…", "error")
+  }
+}
+
+async function ensureSession(st) {
+  if (st.sessionID) return st.sessionID
+  // 嘗試沿用該目錄最近一次 session,否則新建
+  const list = await api(`/session?directory=${encodeURIComponent(st.directory)}`)
+  const mine = Array.isArray(list)
+    ? list.filter((s) => s.directory === st.directory).sort((a, b) => b.time?.updated - a.time?.updated)
+    : []
+  if (mine.length > 0) {
+    st.sessionID = mine[0].id
+  } else {
+    const created = await api(`/session?directory=${encodeURIComponent(st.directory)}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+    st.sessionID = created.id
+  }
+  return st.sessionID
+}
+
+async function init() {
+  for (const [i, p] of CONFIG.projects.entries()) tabsEl.appendChild(buildTab(p, i))
+  const failures = []
+  await Promise.all(
+    states.map(async (st) => {
+      try {
+        await ensureSession(st)
+        connect(st)
+      } catch (err) {
+        failures.push(`${st.label}: ${err.message}`)
+      }
+    }),
+  )
+  if (failures.length) {
+    setStatus("部分專案連線失敗", "error")
+    failures.forEach((f) => addLog(f, "perm"))
+  }
+  nowdirEl.textContent = active.directory
+  renderAll()
+  loadModels()
+  // 重現先前動態加入的專案(不切換 active)
+  for (const c of loadCustom()) addProject(c, { noSwitch: true })
+  if (CONFIG.autoAllowOnce) {
+    setInterval(() => {
+      for (const st of states) autoAllowPending(st)
+    }, 1000)
+  }
+}
+
+function buildTab(p, i, removable = false) {
+  const btn = document.createElement("button")
+  btn.dataset.index = i
+  const label = document.createElement("span")
+  label.textContent = p.label
+  const dir = document.createElement("span")
+  dir.className = "dir"
+  dir.textContent = p.directory
+  btn.appendChild(label)
+  btn.appendChild(dir)
+  if (removable) {
+    const x = document.createElement("span")
+    x.className = "tab-x"
+    x.textContent = "×"
+    x.title = "移除此動態專案"
+    x.addEventListener("click", (e) => {
+      e.stopPropagation()
+      removeProject(p.directory)
+    })
+    btn.appendChild(x)
+  }
+  btn.addEventListener("click", () => switchProject(i))
+  return btn
+}
+
+function switchProject(index) {
+  active = states[index]
+  for (const btn of tabsEl.children) {
+    btn.classList.toggle("active", Number(btn.dataset.index) === index)
+  }
+  nowdirEl.textContent = active.directory
+  sendBtn.disabled = active.busy
+  setStatus(active.busy ? "執行中…" : "待命", active.busy ? "busy" : "online")
+  renderAll()
+  loadModels()
+}
+
+// 移除一個動態專案:關閉 SSE、移除分頁與 state、清除 localStorage。
+function removeProject(directory) {
+  const idx = states.findIndex((s) => s.directory === directory)
+  if (idx === -1) return
+  const st = states[idx]
+  if (CONFIG.projects.some((p) => p.directory === st.directory)) {
+    addLog(`「${st.label}」為內建專案,不可移除`, "perm")
+    return
+  }
+  const wasActive = active === st
+  st.es?.close()
+  st.es = null
+  states.splice(idx, 1)
+  tabsEl.children[idx]?.remove()
+  const ci = customProjects.findIndex((c) => c.directory === st.directory)
+  if (ci !== -1) {
+    customProjects.splice(ci, 1)
+    persistCustom()
+  }
+  states.forEach((s, i) => { s.index = i })
+  for (let i = 0; i < tabsEl.children.length; i++) tabsEl.children[i].dataset.index = String(i)
+  addLog(`${st.label}: 已移除專案 ${st.directory}`)
+  if (wasActive) switchProject(Math.min(idx, states.length - 1))
+  else switchProject(active.index)
+}
+
+// 動態加入一個專案目錄:建立 state、加入分頁、連線 SSE/session,並持久化。
+async function addProject(proj, { noSwitch = false } = {}) {
+  const directory = normalizeDir(proj.directory)
+  if (!directory) return false
+  if (states.some((s) => s.directory === directory)) {
+    addLog(`「${directory}」已存在,未重複加入`, "perm")
+    return false
+  }
+  const label = proj.label || baseNameOf(directory)
+  const st = {
+    index: states.length,
+    label,
+    directory,
+    sessionID: null,
+    es: null,
+    messages: new Map(),
+    busy: false,
+    turnStart: null,
+    ttft: null,
+    turnEnd: null,
+    modelRef: null,
+    model: null,
+    lastAssistantID: null,
+    replied: new Set(),
+  }
+  states.push(st)
+  tabsEl.appendChild(buildTab(st, st.index, true))
+  if (!proj.ephemeral) {
+    customProjects.push({ label, directory })
+    persistCustom()
+  }
+  addLog(`${label}: 已加入專案 ${directory}`)
+  try {
+    await ensureSession(st)
+    connect(st)
+  } catch (err) {
+    addLog(`${label}: 專案連線失敗:${err.message}`, "perm")
+  }
+  if (!noSwitch) switchProject(st.index)
+  return true
+}
+
+function activateBusy(st) {
+  st.busy = true
+  if (active === st) {
+    setStatus("執行中…", "busy")
+    sendBtn.disabled = true
+  }
+}
+
+async function send() {
+  const text = inputEl.value.trim()
+  if (!text || active.busy) return
+  const st = active
+  inputEl.value = ""
+  st.turnStart = performance.now()
+  st.ttft = null
+  st.turnEnd = null
+  st.modelRef = null
+  st.lastAssistantID = null
+  try {
+    const sessionID = await ensureSession(st)
+    activateBusy(st)
+    const body = {
+      parts: [{ type: "text", text }],
+    }
+    if (st.model) body.model = st.model
+    const res = await api(`/session/${sessionID}/message?directory=${encodeURIComponent(st.directory)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+    // 以回傳結果先 seed(與後續 SSE 事件 idempotent 合併)
+    if (res) {
+      upsertMessage(st, res.info)
+      for (const part of res.parts || []) upsertPart(st, part)
+    }
+    renderAll()
+  } catch (err) {
+    st.busy = false
+    setStatus("傳送失敗", "error")
+    sendBtn.disabled = false
+    addLog(`傳送失敗:${err.message}`, "perm")
+  }
+}
+
+let interruptFlashTimer = null
+
+function flashInterrupt(text) {
+  interruptBtn.textContent = text
+  interruptBtn.classList.add("flash")
+  clearTimeout(interruptFlashTimer)
+  interruptFlashTimer = setTimeout(() => {
+    interruptBtn.textContent = "中斷"
+    interruptBtn.classList.remove("flash")
+  }, 1300)
+}
+
+async function interrupt() {
+  const st = active
+  if (!st.sessionID) {
+    flashInterrupt("無 session")
+    return
+  }
+  if (!st.busy) {
+    flashInterrupt("無任務可中斷")
+    return
+  }
+  try {
+    await api(`/session/${st.sessionID}/abort?directory=${encodeURIComponent(st.directory)}`, {
+      method: "POST",
+    })
+    addLog(`${st.label}: 已送出中斷`)
+    completeTurn(st)
+  } catch (err) {
+    addLog(`中斷失敗:${err.message}`, "perm")
+  }
+}
+
+async function newSession() {
+  const st = active
+  if (st.busy) {
+    addLog(`「${st.label}」正在執行,請先中斷再開新對話`)
+    return
+  }
+  try {
+    const created = await api(`/session?directory=${encodeURIComponent(st.directory)}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+    st.sessionID = created.id
+    st.messages = new Map()
+    st.turnStart = null
+    st.ttft = null
+    st.turnEnd = null
+    st.modelRef = null
+    st.lastAssistantID = null
+    st.replied = new Set()
+    st.busy = false
+    addLog(`${st.label}: 已建立新 session ${created.id}`)
+    if (active === st) {
+      setStatus("待命", "online")
+      sendBtn.disabled = false
+      renderAll()
+    }
+  } catch (err) {
+    addLog(`開新對話失敗:${err.message}`, "perm")
+  }
+}
+
+let modelLoadSeq = 0
+async function loadModels() {
+  const st = active
+  const seq = ++modelLoadSeq
+  const current = () => seq === modelLoadSeq
+  let data = null
+  let ok = false
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const res = await api(`/config/providers?directory=${encodeURIComponent(st.directory)}`)
+      data = res
+      ok = true
+      break
+    } catch (err) {
+      if (attempt === 5) {
+        addLog(`讀取模型清單失敗:${err.message}`, "perm")
+        break
+      }
+      await new Promise((r) => setTimeout(r, 1500))
+    }
+  }
+  if (!current() || !ok) return
+  const options = []
+  for (const prov of data?.providers || []) {
+    for (const m of Object.values(prov.models || {})) {
+      if (m && m.id) options.push({ key: `${m.providerID}/${m.id}`, label: `${prov.name} · ${m.name || m.id}` })
+    }
+  }
+  options.sort((a, b) => a.label.localeCompare(b.label))
+  while (modelSel.options.length > 1) modelSel.remove(1)
+  for (const o of options) {
+    const opt = document.createElement("option")
+    opt.value = o.key
+    opt.textContent = o.label
+    modelSel.appendChild(opt)
+  }
+  modelSel.value = st.model && st.model.modelID ? `${st.model.providerID}/${st.model.modelID}` : ""
+}
+
+$("#composer").addEventListener("submit", (e) => {
+  e.preventDefault()
+  send()
+})
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault()
+    send()
+  }
+})
+interruptBtn.addEventListener("click", interrupt)
+newBtn.addEventListener("click", newSession)
+modelSel.addEventListener("change", () => {
+  const v = modelSel.value
+  active.model = v ? { providerID: v.split("/")[0], modelID: v.slice(v.indexOf("/") + 1) } : null
+  addLog(`${active.label}: ${v ? "已指定模型 " + v : "改回預設模型"}`)
+})
+
+addProjectBtn.addEventListener("click", () => {
+  const hidden = addProjectForm.classList.toggle("hidden")
+  if (!hidden) newDirEl.focus()
+})
+addOkBtn.addEventListener("click", async () => {
+  const dir = newDirEl.value.trim()
+  if (!dir) {
+    addLog("請輸入專案目錄路徑", "perm")
+    newDirEl.focus()
+    return
+  }
+  const ok = await addProject({ label: newLabelEl.value.trim(), directory: dir })
+  if (ok) {
+    newDirEl.value = ""
+    newLabelEl.value = ""
+    addProjectForm.classList.add("hidden")
+  }
+})
+addCancelBtn.addEventListener("click", () => {
+  newDirEl.value = ""
+  newLabelEl.value = ""
+  addProjectForm.classList.add("hidden")
+})
+newDirEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault()
+    addOkBtn.click()
+  }
+})
+
+init()
+</script>
+</body>
+</html>

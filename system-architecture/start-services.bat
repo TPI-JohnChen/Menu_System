@@ -1,5 +1,10 @@
 @echo off
+setlocal enabledelayedexpansion
 title AI Provider Settings Manager
+
+rem Resolve repo root relative to this script's own location (system-architecture\)
+set "ROOT=%~dp0.."
+set "PROXY=%ROOT%\ai-proxy"
 
 :menu
 cls
@@ -12,12 +17,13 @@ echo   [2] Stop Services
 echo   [3] Check Status
 echo   [4] Exit
 echo.
-set /p choice=Select (1-4): 
+set "choice="
+set /p choice=Select (1-4):
 
 if "%choice%"=="1" goto start
 if "%choice%"=="2" goto stop
 if "%choice%"=="3" goto status
-if "%choice%"=="4" goto exit
+if "%choice%"=="4" goto end
 echo.
 echo Invalid selection.
 timeout /t 2 >nul
@@ -30,7 +36,12 @@ echo   Starting Services
 echo ========================================
 echo.
 echo [1/3] Starting AI Proxy...
-start "AI Proxy" cmd /c "cd /d C:\D\ai_cli\Menu_System\ai-proxy && npm start"
+if not exist "%PROXY%\node_modules" (
+    echo       node_modules not found, run "npm install" in %PROXY%
+    pause
+    goto menu
+)
+start "AI Proxy" cmd /c "cd /d "%PROXY%" && npm start"
 timeout /t 3 /nobreak >nul
 
 echo [2/3] Checking Proxy...
@@ -109,5 +120,5 @@ echo.
 pause
 goto menu
 
-:exit
+:end
 exit

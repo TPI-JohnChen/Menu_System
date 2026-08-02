@@ -71,3 +71,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Playwright CLI generated files
+system-architecture/.playwright-cli/*.log
+system-architecture/.playwright-cli/page*.yaml
+system-architecture/.playwright-cli/page*.yml
+system-architecture/.opencode/skills/playwright-cli/references/

@@ -1,0 +1,1309 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenCode Serve 對話</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  #nowdir {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    background: var(--color-menu-hover);
+    border: 1px solid var(--color-border);
+    border-radius: 5px;
+    padding: 2px 8px;
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #status { font-size: 12px; color: var(--color-text-secondary); }
+  #status.online { color: #4caf50; }
+  #status.busy { color: var(--color-primary); }
+  #status.error { color: #e53935; }
+  #model-select {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    max-width: 240px;
+    font-size: 12px;
+  }
+  #interrupt-btn, #new-btn {
+    background: var(--color-menu-hover);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #interrupt-btn { margin-left: auto; }
+  #interrupt-btn.flash { border-color: #e53935; color: #e53935; }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 85%; }
+  .msg.user { align-self: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+  .msg .who { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .bubble {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--color-menu-active); }
+  .part-text { white-space: pre-wrap; }
+  .part-reasoning {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    border-left: 2px solid var(--color-border);
+    padding-left: 8px;
+    margin: 4px 0;
+    white-space: pre-wrap;
+  }
+  .part-tool {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    border: 1px dashed var(--color-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 4px 0;
+    white-space: pre-wrap;
+  }
+  .part-tool .tname { color: var(--color-text); }
+  .part-md p { margin: 0 0 8px; }
+  .part-md h1, .part-md h2, .part-md h3, .part-md h4, .part-md h5, .part-md h6 {
+    margin: 12px 0 6px; line-height: 1.3; font-weight: 600;
+  }
+  .part-md ul, .part-md ol { margin: 4px 0 8px; padding-left: 22px; }
+  .part-md li { margin: 2px 0; }
+  .part-md pre {
+    background: var(--color-menu-hover); border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 8px 10px; overflow-x: auto; margin: 6px 0 10px;
+  }
+  .part-md code {
+    font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 12.5px;
+  }
+  .part-md :not(pre) > code {
+    background: var(--color-menu-hover); border: 1px solid var(--color-border); border-radius: 4px; padding: 1px 5px;
+  }
+  .part-md table {
+    border-collapse: collapse; margin: 6px 0 10px; font-size: 13px; width: 100%;
+  }
+  .part-md th, .part-md td { border: 1px solid var(--color-border); padding: 5px 9px; text-align: left; }
+  .part-md th { background: var(--color-menu-hover); font-weight: 600; }
+  .part-md blockquote { border-left: 3px solid var(--color-border); margin: 6px 0; padding: 2px 12px; color: var(--color-text-secondary); }
+  .part-md a { color: var(--color-primary); text-decoration: none; }
+  .part-md hr { border: none; border-top: 1px solid var(--color-border); margin: 10px 0; }
+  .meta { font-size: 11px; color: var(--color-text-secondary); margin-top: 4px; }
+  #log {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    max-height: 110px;
+    overflow-y: auto;
+    flex: none;
+    padding: 4px 16px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  #log .perm { color: #e0b86a; }
+  form#composer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+  #input {
+    flex: 1;
+    resize: none;
+    height: 52px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+  }
+  #input:focus { outline: none; border-color: var(--color-primary); }
+  #send-btn {
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: default; }
+  .placeholder { color: var(--color-text-secondary); text-align: center; margin-top: 40px; }
+  #session-btn {
+    background: var(--color-menu-hover);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #session-btn.active { border-color: var(--color-primary); color: var(--color-primary); }
+  #session-panel {
+    position: fixed;
+    top: 56px;
+    right: 12px;
+    width: 300px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    padding: 8px 0;
+    z-index: 50;
+    display: none;
+  }
+  #session-panel.open { display: block; }
+  #session-panel .sp-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    padding: 4px 12px 8px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 6px;
+  }
+  #session-panel .sp-empty {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    padding: 12px;
+    text-align: center;
+  }
+  .sp-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .sp-item:hover { background: var(--color-menu-hover); }
+  .sp-item.current { background: var(--color-menu-active); color: var(--color-surface); }
+  .sp-item .sp-title-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+  .sp-item .sp-time { font-size: 11px; color: var(--color-text-secondary); }
+  .sp-item.current .sp-time { color: inherit; opacity: 0.8; }
+  .sp-more {
+    font-size: 12px;
+    color: var(--color-primary);
+    padding: 6px 12px;
+    cursor: pointer;
+    border-top: 1px solid var(--color-border);
+  }
+  .sp-more:hover { background: var(--color-menu-hover); }
+  .load-more {
+    align-self: center;
+    font-size: 12px;
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 5px 14px;
+    cursor: pointer;
+    margin: 6px auto;
+  }
+  .load-more:hover { background: var(--color-menu-hover); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="page-title">OpenCode Serve 對話</h1>
+  <span id="nowdir" title=""></span>
+  <span id="status">連線中…</span>
+  <select id="model-select" title=""><option value="">預設模型</option></select>
+  <button id="session-btn"></button>
+  <button id="new-btn"></button>
+  <button id="interrupt-btn">中斷</button>
+</header>
+<div id="session-panel"></div>
+<div id="messages"></div>
+<div id="log"></div>
+<form id="composer">
+  <textarea id="input" placeholder="" autofocus></textarea>
+  <button id="send-btn" type="submit">傳送</button>
+</form>
+
+<script src="../lib/i18n.js"></script>
+<script src="../lib/iframe-client.js"></script>
+<script>
+"use strict"
+
+/* ===== URL 參數（由 Menu 帶入） ===== */
+var urlParams = new URLSearchParams(window.location.search)
+var serverId = urlParams.get('serverId') || ''
+var worktree = urlParams.get('worktree') || ''
+var labelParam = urlParams.get('label') || ''
+var serverName = urlParams.get('server') || ''
+
+var BASE = 'http://localhost:3001/api/opencode/' + serverId
+var autoAllowOnce = true
+
+/* ===== i18n ===== */
+var T = {
+  'zh-TW': {
+    title: 'OpenCode Serve 對話',
+    statusConnecting: '連線中…',
+    statusConnected: '已連線',
+    statusReconnect: 'SSE 連線中斷，自動重連…',
+    statusBusy: '執行中…',
+    statusIdle: '待命',
+    statusConnFail: '連線失敗',
+    statusSendFail: '傳送失敗',
+    btnNew: '新對話',
+    btnInterrupt: '中斷',
+    btnSend: '傳送',
+    inputPlaceholder: '輸入訊息… (Enter 傳送, Shift+Enter 換行)',
+    modelDefault: '預設模型',
+    whoUser: '你',
+    whoAssistant: 'Assistant',
+    sending: '(傳送中…)',
+    noMessages: '尚未有訊息',
+    sseConnected: 'SSE 已連線',
+    sseFail: '連線失敗',
+    sentAbort: '已送出中斷',
+    noTask: '無任務可中斷',
+    noSession: '無 session',
+    busyNew: '正在執行，請先中斷再開新對話',
+    newSession: '已建立新 session',
+    newSessionFail: '開新對話失敗',
+    loadModelsFail: '讀取模型清單失敗',
+    permAsked: '[權限請求]',
+    permReplied: '已回覆',
+    permReplyFail: '回覆失敗',
+    modelSet: '已指定模型',
+    modelDefaultSet: '改回預設模型',
+    abortFail: '中斷失敗',
+    sendFail: '傳送失敗',
+    doneLabel: '完成',
+    btnSession: 'Session',
+    sessionPanelTitle: 'Session 清單',
+    noSessions: '此專案尚無 session',
+    noSessionSelected: '尚未選取 session',
+    loadSessionsFail: '讀取 session 清單失敗',
+    loadMessagesFail: '載入歷史訊息失敗',
+    sessionLoading: '載入中…',
+    showAll: '顯示全部',
+    newSessionHint: '或開新對話',
+    untitled: '未命名對話',
+    justNow: '剛剛',
+    minAgo: '{n} 分前',
+    hrAgo: '{n} 小時前',
+    loadEarlier: '載入更早'
+  },
+  'en': {
+    title: 'OpenCode Serve Chat',
+    statusConnecting: 'Connecting…',
+    statusConnected: 'Connected',
+    statusReconnect: 'SSE reconnecting…',
+    statusBusy: 'Running…',
+    statusIdle: 'Idle',
+    statusConnFail: 'Connection failed',
+    statusSendFail: 'Send failed',
+    btnNew: 'New Conversation',
+    btnInterrupt: 'Interrupt',
+    btnSend: 'Send',
+    inputPlaceholder: 'Type a message… (Enter to send, Shift+Enter for newline)',
+    modelDefault: 'Default model',
+    whoUser: 'You',
+    whoAssistant: 'Assistant',
+    sending: '(Sending…)',
+    noMessages: 'No messages yet',
+    sseConnected: 'SSE connected',
+    sseFail: 'Connection failed',
+    sentAbort: 'Abort sent',
+    noTask: 'Nothing to interrupt',
+    noSession: 'No session',
+    busyNew: 'Running, interrupt first',
+    newSession: 'New session created',
+    newSessionFail: 'Failed to create session',
+    loadModelsFail: 'Failed to load models',
+    permAsked: '[Permission]',
+    permReplied: 'Replied',
+    permReplyFail: 'Reply failed',
+    modelSet: 'Model set to',
+    modelDefaultSet: 'Back to default model',
+    abortFail: 'Abort failed',
+    sendFail: 'Send failed',
+    doneLabel: 'Done',
+    btnSession: 'Sessions',
+    sessionPanelTitle: 'Session List',
+    noSessions: 'No sessions in this project',
+    noSessionSelected: 'No session selected',
+    loadSessionsFail: 'Failed to load sessions',
+    loadMessagesFail: 'Failed to load messages',
+    sessionLoading: 'Loading…',
+    showAll: 'Show all',
+    newSessionHint: 'or start new',
+    untitled: 'Untitled',
+    justNow: 'just now',
+    minAgo: '{n}m ago',
+    hrAgo: '{n}h ago',
+    loadEarlier: 'Load earlier'
+  }
+}
+var lang = localStorage.getItem('lang') || 'zh-TW'
+function t(key) { return (T[lang] || T['zh-TW'])[key] }
+
+/* ===== DOM ===== */
+var $ = function(sel) { return document.querySelector(sel) }
+var statusEl = $('#status')
+var nowdirEl = $('#nowdir')
+var messagesEl = $('#messages')
+var logEl = $('#log')
+var interruptBtn = $('#interrupt-btn')
+var newBtn = $('#new-btn')
+var modelSel = $('#model-select')
+var inputEl = $('#input')
+var sendBtn = $('#send-btn')
+var sessionBtn = $('#session-btn')
+var sessionPanelEl = $('#session-panel')
+
+/* ===== 單一專案 state ===== */
+function basename(p) {
+  return String(p || '').split(/[\\/]/).filter(Boolean).pop() || p
+}
+var st = {
+  label: labelParam || basename(worktree) || 'OpenCode Serve',
+  directory: worktree,
+  serverName: serverName,
+  sessionID: null,
+  es: null,
+  messages: new Map(),
+  busy: false,
+  turnStart: null,
+  ttft: null,
+  turnEnd: null,
+  modelRef: null,
+  model: null,
+  lastAssistantID: null,
+  replied: new Set(),
+  sessionList: [],
+  sessionPanelOpen: false,
+  loadingSession: false,
+  showAllSessions: false,
+  historyTotal: 0,
+  historyLimit: 20
+}
+
+function fmtRelative(ts) {
+  if (!ts) return ''
+  var diff = Date.now() - ts
+  if (diff < 0) diff = 0
+  var min = Math.floor(diff / 60000)
+  if (min < 1) return t('justNow')
+  if (min < 60) return t('minAgo').replace('{n}', min)
+  var hr = Math.floor(min / 60)
+  if (hr < 24) return t('hrAgo').replace('{n}', hr)
+  var d = new Date(ts)
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n }
+  return (d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
+
+function dirQ(path) {
+  var sep = path.indexOf('?') !== -1 ? '&' : '?'
+  return path + sep + 'directory=' + encodeURIComponent(worktree)
+}
+
+function setStatus(text, cls) {
+  statusEl.textContent = text
+  statusEl.className = cls || ''
+}
+
+/* ===== API ===== */
+async function api(path, options) {
+  options = options || {}
+  var res = await fetch(BASE + dirQ(path), {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  })
+  if (!res.ok) {
+    var body = ''
+    try { body = await res.text() } catch (e) { /* ignore */ }
+    throw new Error(res.status + ' ' + res.statusText + (body ? ' — ' + body : ''))
+  }
+  if (res.status === 204) return null
+  var ct = res.headers.get('content-type') || ''
+  return ct.indexOf('json') !== -1 ? res.json() : res.text()
+}
+
+/* ===== 日誌（防爆） ===== */
+var LOG_DEDUP_MS = 2500
+var LOG_MAX = 60
+var logSeen = new Map()
+
+function addLog(text, cls) {
+  var now = performance.now()
+  var last = logSeen.get(text)
+  if (last !== undefined && now - last < LOG_DEDUP_MS) return
+  logSeen.set(text, now)
+  var div = document.createElement('div')
+  div.className = cls || ''
+  div.textContent = text
+  logEl.appendChild(div)
+  while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+/* ===== 訊息渲染 ===== */
+function renderMessage(mid) {
+  var entry = st.messages.get(mid)
+  if (!entry) return
+  var container = document.createElement('div')
+  container.className = 'msg ' + (entry.info && entry.info.role === 'user' ? 'user' : 'assistant')
+
+  var who = document.createElement('div')
+  who.className = 'who'
+  who.textContent = entry.info && entry.info.role === 'user' ? t('whoUser') : (entry.info && entry.info.title || t('whoAssistant'))
+  container.appendChild(who)
+
+  var bubble = document.createElement('div')
+  bubble.className = 'bubble'
+  for (var i = 0; i < entry.order.length; i++) {
+    var p = entry.parts.get(entry.order[i])
+    if (!p) continue
+    var el = renderPart(p)
+    if (el) bubble.appendChild(el)
+  }
+  if (entry.order.length === 0 && entry.info && entry.info.role === 'user') {
+    bubble.textContent = t('sending')
+  }
+  container.appendChild(bubble)
+  if (entry.meta) {
+    var meta = document.createElement('div')
+    meta.className = 'meta'
+    var bits = []
+    if (entry.meta.model) bits.push(t('modelSet') + ' ' + entry.meta.model)
+    bits.push('TTFT ' + fmtMs(entry.meta.ttft))
+    bits.push(t('doneLabel') + ' ' + fmtMs(entry.meta.total))
+    meta.textContent = bits.join(' · ')
+    container.appendChild(meta)
+  }
+  messagesEl.appendChild(container)
+}
+
+function fmtMs(ms) {
+  if (ms == null) return '—'
+  return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s'
+}
+
+function renderMarkdown(src) {
+  var frag = document.createDocumentFragment()
+  var lines = src.split('\n')
+  var i = 0
+  var para = []
+  var flushPara = function() {
+    if (para.length === 0) return
+    var p = document.createElement('p')
+    mdInline(para.join('\n'), p)
+    frag.appendChild(p)
+    para = []
+  }
+  var splitCells = function(l) {
+    var parts = l.split('|').map(function(s) { return s.trim() })
+    if (parts[0] === '') parts.shift()
+    if (parts.length && parts[parts.length - 1] === '') parts.pop()
+    return parts
+  }
+  while (i < lines.length) {
+    var line = lines[i]
+    var trimmed = line.trim()
+    if (trimmed === '') { flushPara(); i++; continue }
+    if (line.indexOf('|') !== -1 && i + 1 < lines.length && /^\|?[\s:|-]+\|?\s*$/.test(lines[i + 1]) && lines[i + 1].indexOf('|') !== -1) {
+      flushPara()
+      var table = document.createElement('table')
+      var thead = document.createElement('thead')
+      var hrow = document.createElement('tr')
+      splitCells(line).forEach(function(h) { var th = document.createElement('th'); mdInline(h, th); hrow.appendChild(th) })
+      thead.appendChild(hrow)
+      var tbody = document.createElement('tbody')
+      i += 2
+      while (i < lines.length && lines[i].trim() !== '' && lines[i].indexOf('|') !== -1) {
+        var r = document.createElement('tr')
+        splitCells(lines[i]).forEach(function(c) { var td = document.createElement('td'); mdInline(c, td); r.appendChild(td) })
+        tbody.appendChild(r)
+        i++
+      }
+      table.appendChild(thead)
+      table.appendChild(tbody)
+      frag.appendChild(table)
+      continue
+    }
+    if (/^```/.test(trimmed)) {
+      flushPara()
+      var lang2 = trimmed.slice(3).trim()
+      var buf = []
+      i++
+      while (i < lines.length && !/^```/.test(lines[i].trim())) { buf.push(lines[i]); i++ }
+      i++
+      var pre = document.createElement('pre')
+      var code = document.createElement('code')
+      if (lang2) code.className = 'lang-' + lang2
+      code.textContent = buf.join('\n')
+      pre.appendChild(code)
+      frag.appendChild(pre)
+      continue
+    }
+    var hm = /^(#{1,6})\s+(.*)$/.exec(trimmed)
+    if (hm) {
+      flushPara()
+      var h = document.createElement('h' + hm[1].length)
+      mdInline(hm[2], h)
+      frag.appendChild(h)
+      i++
+      continue
+    }
+    if (/^(\s*(-{3,}|\*{3,})\s*)$/.test(trimmed) && trimmed.indexOf('|') === -1) {
+      flushPara()
+      frag.appendChild(document.createElement('hr'))
+      i++
+      continue
+    }
+    if (/^>\s?/.test(line)) {
+      flushPara()
+      var bqLines = []
+      while (i < lines.length && /^>\s?/.test(lines[i])) { bqLines.push(lines[i].replace(/^>\s?/, '')); i++ }
+      var bq = document.createElement('blockquote')
+      mdInline(bqLines.join('\n'), bq)
+      frag.appendChild(bq)
+      continue
+    }
+    if (/^\s*[-*+]\s+/.test(line)) {
+      flushPara()
+      var ul = document.createElement('ul')
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        var li = document.createElement('li')
+        mdInline(lines[i].replace(/^\s*[-*+]\s+/, ''), li)
+        ul.appendChild(li)
+        i++
+      }
+      frag.appendChild(ul)
+      continue
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      flushPara()
+      var ol = document.createElement('ol')
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        var li2 = document.createElement('li')
+        mdInline(lines[i].replace(/^\s*\d+\.\s+/, ''), li2)
+        ol.appendChild(li2)
+        i++
+      }
+      frag.appendChild(ol)
+      continue
+    }
+    para.push(line)
+    i++
+  }
+  flushPara()
+  return frag
+}
+
+function mdInline(src, root) {
+  var pushText = function(t2) { if (t2) root.appendChild(document.createTextNode(t2)) }
+  var i = 0
+  while (i < src.length) {
+    var c = src[i]
+    if (c === '`') {
+      var j = i + 1
+      while (j < src.length && src[j] !== '`') j++
+      if (j < src.length) {
+        var code = document.createElement('code')
+        code.textContent = src.slice(i + 1, j)
+        root.appendChild(code)
+        i = j + 1
+      } else { pushText(src.slice(i)); break }
+      continue
+    }
+    if (c === '*') {
+      var m = src.startsWith('**', i) ? '**' : '*'
+      var close = src.indexOf(m, i + m.length)
+      if (close === -1) { pushText(src.slice(i)); break }
+      var inner = document.createElement(m === '**' ? 'strong' : 'em')
+      mdInline(src.slice(i + m.length, close), inner)
+      root.appendChild(inner)
+      i = close + m.length
+      continue
+    }
+    if (c === '[') {
+      var closeB = src.indexOf(']', i)
+      var paren = closeB !== -1 && src[closeB + 1] === '('
+      var closeP = paren ? src.indexOf(')', closeB) : -1
+      if (paren && closeP !== -1) {
+        var label = src.slice(i + 1, closeB)
+        var url = src.slice(closeB + 2, closeP)
+        if (/^https?:/i.test(url)) {
+          var a = document.createElement('a')
+          a.href = url
+          a.target = '_blank'
+          a.rel = 'noopener'
+          a.textContent = label
+          root.appendChild(a)
+        } else {
+          pushText(label)
+        }
+        i = closeP + 1
+        continue
+      }
+    }
+    var next = src.slice(i)
+    var stop = next.search(/[`*[]/)
+    if (stop === -1) { pushText(next); break }
+    if (stop > 0) pushText(next.slice(0, stop))
+    i += stop
+  }
+}
+
+function truncate(s, n) {
+  if (typeof s !== 'string') return s
+  return s.length > n ? s.slice(0, n) + '\n…(已截斷)' : s
+}
+
+function renderPart(part) {
+  var el = document.createElement('div')
+  switch (part.type) {
+    case 'text':
+      el.className = 'part-md'
+      el.appendChild(renderMarkdown(part.text || ''))
+      break
+    case 'reasoning':
+      el.className = 'part-reasoning'
+      el.textContent = part.text || ''
+      break
+    case 'tool': {
+      el.className = 'part-tool'
+      var st2 = part.state || {}
+      var status = st2.status || ''
+      var title = st2.title || ''
+      el.textContent = '[工具] ' + (part.tool || part.callID || '?') + (title ? ' — ' + title : '') + ' (' + status + ')'
+      if (status === 'completed' && typeof st2.output === 'string' && st2.output) {
+        var out = document.createElement('pre')
+        out.className = 'tool-out'
+        out.textContent = truncate(st2.output, 2000)
+        el.appendChild(out)
+      }
+      break
+    }
+    case 'file': {
+      el.className = 'part-tool'
+      var link = document.createElement('a')
+      link.href = part.url || '#'
+      link.target = '_blank'
+      link.rel = 'noopener'
+      link.textContent = '[檔案] ' + (part.filename || part.url || '')
+      el.appendChild(link)
+      break
+    }
+    case 'agent':
+      el.className = 'part-tool'
+      el.textContent = '[Agent 切換] ' + (part.agent || part.name || '')
+      break
+    case 'subtask':
+      el.className = 'part-tool'
+      el.textContent = '[子任務 → ' + (part.agent || '') + '] ' + (part.description || part.prompt || '')
+      break
+    case 'patch':
+      el.className = 'part-tool'
+      el.textContent = '[變更] ' + ((part.files || []).join(', ') || part.hash || '')
+      break
+    default:
+      el = null
+  }
+  return el
+}
+
+function renderAll() {
+  messagesEl.innerHTML = ''
+  st.messages.forEach(function(entry, mid) { renderMessage(mid) })
+  if (st.messages.size === 0) {
+    var p = document.createElement('div')
+    p.className = 'placeholder'
+    p.textContent = st.label + ' — ' + t('noMessages')
+    messagesEl.appendChild(p)
+  }
+  if (st.historyLimit < st.historyTotal) {
+    var more = document.createElement('div')
+    more.className = 'load-more'
+    more.textContent = t('loadEarlier') + ' (' + (st.historyTotal - st.historyLimit) + ')'
+    more.addEventListener('click', function() {
+      st.historyLimit += 20
+      reloadHistory()
+    })
+    messagesEl.appendChild(more)
+  }
+  messagesEl.scrollTop = messagesEl.scrollHeight
+}
+
+/* ===== SSE 事件處理 ===== */
+function upsertMessage(info) {
+  if (!info || !info.id) return
+  if (!st.messages.has(info.id)) {
+    st.messages.set(info.id, { info: info, parts: new Map(), order: [] })
+  } else {
+    st.messages.get(info.id).info = info
+  }
+}
+
+function upsertPart(part) {
+  if (!part || !part.id || !part.messageID) return
+  var entry = st.messages.get(part.messageID)
+  if (!entry) return
+  if (!entry.parts.has(part.id)) entry.order.push(part.id)
+  entry.parts.set(part.id, part)
+}
+
+function markTtft() {
+  if (st.turnStart != null && st.ttft === null) st.ttft = performance.now() - st.turnStart
+}
+
+function completeTurn() {
+  if (st.turnStart != null) {
+    st.turnEnd = performance.now() - st.turnStart
+    if (st.lastAssistantID) {
+      var e = st.messages.get(st.lastAssistantID)
+      if (e) e.meta = { model: st.modelRef, ttft: st.ttft, total: st.turnEnd }
+    }
+  }
+  if (st.busy) {
+    st.busy = false
+    setStatus(t('statusIdle'), 'online')
+    sendBtn.disabled = false
+  }
+  renderAll()
+  refreshSessionList()
+}
+
+function handleEvent(evt) {
+  var props = evt.properties || {}
+  var sid = props.sessionID || (props.info && props.info.sessionID) || (props.part && props.part.sessionID)
+  if (sid !== undefined && sid !== st.sessionID) return
+  switch (evt.type) {
+    case 'message.updated':
+      upsertMessage(props.info)
+      if (props.info && props.info.role === 'assistant') {
+        st.lastAssistantID = props.info.id
+        if (props.info.modelID) st.modelRef = props.info.modelID
+      }
+      renderAll()
+      if (st.sessionPanelOpen) refreshSessionList()
+      break
+    case 'message.part.updated':
+      upsertPart(props.part)
+      if (props.part && (props.part.type === 'text' || props.part.type === 'reasoning')) markTtft()
+      renderAll()
+      break
+    case 'message.part.delta': {
+      if (props.field === 'text' && typeof props.delta === 'string') {
+        markTtft()
+        var entry = st.messages.get(props.messageID)
+        if (entry && entry.parts.has(props.partID)) {
+          entry.parts.get(props.partID).text = (entry.parts.get(props.partID).text || '') + props.delta
+        } else {
+          var agg = st.messages.get(props.messageID)
+          if (!agg) {
+            upsertMessage({ id: props.messageID, role: 'assistant' })
+            agg = st.messages.get(props.messageID)
+          }
+          if (agg && !agg.parts.has(props.partID)) {
+            agg.parts.set(props.partID, { id: props.partID, messageID: props.messageID, type: 'text', text: '' })
+            agg.order.push(props.partID)
+          }
+          if (agg && agg.parts.has(props.partID)) {
+            agg.parts.get(props.partID).text += props.delta
+          }
+        }
+      }
+      renderAll()
+      break
+    }
+    case 'message.part.removed': {
+      var entry2 = st.messages.get(props.messageID)
+      if (entry2) {
+        entry2.parts.delete(props.partID)
+        entry2.order = entry2.order.filter(function(id) { return id !== props.partID })
+      }
+      renderAll()
+      break
+    }
+    case 'permission.asked':
+      addLog(t('permAsked') + ' ' + (props.permission || '') + ' ' + ((props.patterns || []).join(' ') || ''), 'perm')
+      if (autoAllowOnce && props.id) replyPermission(props.id, 'once')
+      break
+    case 'session.idle':
+      completeTurn()
+      break
+    case 'session.status':
+      if (props.status && props.status.type === 'idle') completeTurn()
+      break
+    default:
+      break
+  }
+}
+
+async function replyPermission(requestID, reply) {
+  try {
+    await api('/permission/' + requestID + '/reply', {
+      method: 'POST',
+      body: JSON.stringify({ reply: reply })
+    })
+    addLog('  ' + t('permReplied') + ' ' + reply, 'perm')
+  } catch (err) {
+    addLog('  ' + t('permReplyFail') + ':' + err.message, 'perm')
+  }
+}
+
+async function autoAllowPending() {
+  if (!st.sessionID) return
+  var pending
+  try {
+    pending = await api('/permission')
+  } catch (e) {
+    return
+  }
+  if (!Array.isArray(pending)) return
+  for (var i = 0; i < pending.length; i++) {
+    var req = pending[i]
+    if (req.sessionID !== st.sessionID || st.replied.has(req.id)) continue
+    st.replied.add(req.id)
+    if (autoAllowOnce) {
+      addLog(t('permAsked') + ' ' + (req.permission || '') + ' ' + ((req.patterns || []).join(' ') || ''), 'perm')
+      replyPermission(req.id, 'once')
+    }
+  }
+}
+
+function connect() {
+  var es = new EventSource(BASE + '/event?directory=' + encodeURIComponent(worktree))
+  st.es = es
+  es.onopen = function() {
+    setStatus(t('statusConnected'), 'online')
+    addLog(st.label + ': ' + t('sseConnected'))
+  }
+  es.onmessage = function(ev) {
+    var payload
+    try { payload = JSON.parse(ev.data) } catch (e) { return }
+    handleEvent(payload)
+  }
+  es.onerror = function() {
+    setStatus(t('statusReconnect'), 'error')
+  }
+}
+
+async function ensureSession() {
+  if (st.sessionID) return st.sessionID
+  var created = await api('/session', {
+    method: 'POST',
+    body: JSON.stringify({})
+  })
+  st.sessionID = created.id
+  return st.sessionID
+}
+
+async function loadSessionList() {
+  try {
+    var list = await api('/session')
+    st.sessionList = Array.isArray(list) ? list.slice() : []
+    st.sessionList.sort(function(a, b) {
+      return (b.time && b.time.updated || 0) - (a.time && a.time.updated || 0)
+    })
+    renderSessionPanel()
+  } catch (err) {
+    addLog(t('loadSessionsFail') + ':' + err.message, 'perm')
+  }
+}
+
+function refreshSessionList() {
+  loadSessionList()
+}
+
+function renderSessionPanel() {
+  sessionPanelEl.innerHTML = ''
+  var title = document.createElement('div')
+  title.className = 'sp-title'
+  title.textContent = t('sessionPanelTitle')
+  sessionPanelEl.appendChild(title)
+  if (st.loadingSession) {
+    var loading = document.createElement('div')
+    loading.className = 'sp-empty'
+    loading.textContent = t('sessionLoading')
+    sessionPanelEl.appendChild(loading)
+    return
+  }
+  var list = st.showAllSessions ? st.sessionList : st.sessionList.slice(0, 20)
+  if (list.length === 0) {
+    var empty = document.createElement('div')
+    empty.className = 'sp-empty'
+    empty.textContent = t('noSessions')
+    sessionPanelEl.appendChild(empty)
+    return
+  }
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i]
+    var item = document.createElement('div')
+    item.className = 'sp-item' + (s.id === st.sessionID ? ' current' : '')
+    item.dataset.id = s.id
+    var name = document.createElement('div')
+    name.className = 'sp-title-text'
+    name.textContent = s.title || t('untitled')
+    var time = document.createElement('div')
+    time.className = 'sp-time'
+    time.textContent = fmtRelative(s.time && s.time.updated)
+    item.appendChild(name)
+    item.appendChild(time)
+    item.addEventListener('click', function() {
+      switchSession(this.dataset.id)
+    })
+    sessionPanelEl.appendChild(item)
+  }
+  if (!st.showAllSessions && st.sessionList.length > 20) {
+    var more = document.createElement('div')
+    more.className = 'sp-more'
+    more.textContent = t('showAll') + ' (' + st.sessionList.length + ')'
+    more.addEventListener('click', function(e) {
+      e.stopPropagation()
+      st.showAllSessions = true
+      renderSessionPanel()
+    })
+    sessionPanelEl.appendChild(more)
+  }
+}
+
+function setSessionPanel(open) {
+  st.sessionPanelOpen = open
+  sessionPanelEl.classList.toggle('open', open)
+  sessionBtn.classList.toggle('active', open)
+}
+
+async function loadHistoryInto() {
+  var msgs = await api('/session/' + st.sessionID + '/message')
+  if (!Array.isArray(msgs)) msgs = []
+  st.historyTotal = msgs.length
+  st.messages = new Map()
+  var start = Math.max(0, msgs.length - st.historyLimit)
+  for (var i = start; i < msgs.length; i++) {
+    var m = msgs[i]
+    if (m && m.info) upsertMessage(m.info)
+    if (m && m.parts) {
+      for (var j = 0; j < m.parts.length; j++) upsertPart(m.parts[j])
+    }
+  }
+}
+
+async function reloadHistory() {
+  try {
+    await loadHistoryInto()
+    renderAll()
+  } catch (err) {
+    addLog(t('loadMessagesFail') + ':' + err.message, 'perm')
+  }
+}
+
+async function switchSession(id) {
+  if (!id || id === st.sessionID) return
+  if (st.busy) {
+    try {
+      await api('/session/' + st.sessionID + '/abort', { method: 'POST' })
+    } catch (err) {
+      addLog(t('abortFail') + ':' + err.message, 'perm')
+    }
+    completeTurn()
+  }
+  if (st.es) {
+    st.es.close()
+    st.es = null
+  }
+  st.sessionID = id
+  st.messages = new Map()
+  st.historyTotal = 0
+  st.historyLimit = 20
+  st.loadingSession = true
+  st.turnStart = null
+  st.ttft = null
+  st.turnEnd = null
+  st.modelRef = null
+  st.lastAssistantID = null
+  renderSessionPanel()
+  try {
+    await loadHistoryInto()
+    st.loadingSession = false
+  } catch (err) {
+    st.loadingSession = false
+    st.sessionID = null
+    st.sessionList = st.sessionList.filter(function(s) { return s.id !== id })
+    addLog(t('loadMessagesFail') + ':' + err.message, 'perm')
+    renderSessionPanel()
+  }
+  setSessionPanel(false)
+  connect()
+  renderAll()
+}
+
+/* ===== 初始化 ===== */
+function renderStaticText() {
+  document.getElementById('page-title').textContent = t('title')
+  document.title = t('title')
+  newBtn.textContent = t('btnNew')
+  sessionBtn.textContent = t('btnSession')
+  interruptBtn.textContent = t('btnInterrupt')
+  sendBtn.textContent = t('btnSend')
+  inputEl.placeholder = t('inputPlaceholder')
+  modelSel.title = t('modelDefault')
+  var first = modelSel.options[0]
+  if (first) first.textContent = t('modelDefault')
+  var nowdirText = st.label + (st.serverName ? ' · ' + st.serverName : '')
+  nowdirEl.textContent = nowdirText
+  nowdirEl.title = st.directory || ''
+}
+
+async function init() {
+  renderStaticText()
+  if (!serverId || !worktree) {
+    setStatus(t('statusConnFail'), 'error')
+    addLog(t('statusConnFail') + ': missing serverId/worktree', 'perm')
+    return
+  }
+  var failures = false
+  try {
+    await loadSessionList()
+    if (st.sessionList.length > 0) {
+      setSessionPanel(true)
+    } else {
+      await ensureSession()
+    }
+    connect()
+  } catch (err) {
+    failures = true
+    setStatus(t('statusConnFail'), 'error')
+    addLog(st.label + ': ' + t('sseFail') + ':' + err.message, 'perm')
+  }
+  if (failures) setStatus(t('statusConnFail'), 'error')
+  renderAll()
+  loadModels()
+  if (autoAllowOnce) {
+    setInterval(function() { autoAllowPending() }, 1000)
+  }
+}
+
+/* ===== 操作 ===== */
+function activateBusy() {
+  st.busy = true
+  setStatus(t('statusBusy'), 'busy')
+  sendBtn.disabled = true
+}
+
+async function send() {
+  var text = inputEl.value.trim()
+  if (!text || st.busy) return
+  inputEl.value = ''
+  st.turnStart = performance.now()
+  st.ttft = null
+  st.turnEnd = null
+  st.modelRef = null
+  st.lastAssistantID = null
+  try {
+    var sessionID = await ensureSession()
+    activateBusy()
+    var body = { parts: [{ type: 'text', text: text }] }
+    if (st.model) body.model = st.model
+    var res = await api('/session/' + sessionID + '/message', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    if (res) {
+      upsertMessage(res.info)
+      for (var i = 0; i < (res.parts || []).length; i++) upsertPart(res.parts[i])
+    }
+    renderAll()
+  } catch (err) {
+    st.busy = false
+    setStatus(t('statusSendFail'), 'error')
+    sendBtn.disabled = false
+    addLog(t('sendFail') + ':' + err.message, 'perm')
+  }
+}
+
+var interruptFlashTimer = null
+
+function flashInterrupt(text) {
+  interruptBtn.textContent = text
+  interruptBtn.classList.add('flash')
+  clearTimeout(interruptFlashTimer)
+  interruptFlashTimer = setTimeout(function() {
+    interruptBtn.textContent = t('btnInterrupt')
+    interruptBtn.classList.remove('flash')
+  }, 1300)
+}
+
+async function interrupt() {
+  if (!st.sessionID) {
+    flashInterrupt(t('noSession'))
+    return
+  }
+  if (!st.busy) {
+    flashInterrupt(t('noTask'))
+    return
+  }
+  try {
+    await api('/session/' + st.sessionID + '/abort', { method: 'POST' })
+    addLog(st.label + ': ' + t('sentAbort'))
+    completeTurn()
+  } catch (err) {
+    addLog(t('abortFail') + ':' + err.message, 'perm')
+  }
+}
+
+async function newSession() {
+  if (st.busy) {
+    addLog('「' + st.label + '」' + t('busyNew'))
+    return
+  }
+  try {
+    var created = await api('/session', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+    st.sessionID = created.id
+    st.messages = new Map()
+    st.turnStart = null
+    st.ttft = null
+    st.turnEnd = null
+    st.modelRef = null
+    st.lastAssistantID = null
+    st.replied = new Set()
+    st.busy = false
+    st.historyTotal = 0
+    st.historyLimit = 20
+    setSessionPanel(false)
+    refreshSessionList()
+    addLog(st.label + ': ' + t('newSession') + ' ' + created.id)
+    setStatus(t('statusIdle'), 'online')
+    sendBtn.disabled = false
+    renderAll()
+  } catch (err) {
+    addLog(t('newSessionFail') + ':' + err.message, 'perm')
+  }
+}
+
+/* ===== 模型選擇 ===== */
+var modelLoadSeq = 0
+async function loadModels() {
+  var seq = ++modelLoadSeq
+  var current = function() { return seq === modelLoadSeq }
+  var data = null
+  var ok = false
+  for (var attempt = 1; attempt <= 5; attempt++) {
+    try {
+      data = await api('/config/providers')
+      ok = true
+      break
+    } catch (err) {
+      if (attempt === 5) {
+        addLog(t('loadModelsFail') + ':' + err.message, 'perm')
+        break
+      }
+      await new Promise(function(r) { setTimeout(r, 1500) })
+    }
+  }
+  if (!current() || !ok) return
+  var options = []
+  for (var pi = 0; pi < (data && data.providers || []).length; pi++) {
+    var prov = data.providers[pi]
+    for (var k in (prov.models || {})) {
+      var m = prov.models[k]
+      if (m && m.id) options.push({ key: m.providerID + '/' + m.id, label: prov.name + ' · ' + (m.name || m.id) })
+    }
+  }
+  options.sort(function(a, b) { return a.label.localeCompare(b.label) })
+  while (modelSel.options.length > 1) modelSel.remove(1)
+  for (var oi = 0; oi < options.length; oi++) {
+    var opt = document.createElement('option')
+    opt.value = options[oi].key
+    opt.textContent = options[oi].label
+    modelSel.appendChild(opt)
+  }
+  modelSel.value = st.model && st.model.modelID ? st.model.providerID + '/' + st.model.modelID : ''
+}
+
+/* ===== 事件綁定 ===== */
+$('#composer').addEventListener('submit', function(e) {
+  e.preventDefault()
+  send()
+})
+inputEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    send()
+  }
+})
+interruptBtn.addEventListener('click', interrupt)
+newBtn.addEventListener('click', newSession)
+sessionBtn.addEventListener('click', function() {
+  setSessionPanel(!st.sessionPanelOpen)
+  if (st.sessionPanelOpen) renderSessionPanel()
+})
+document.addEventListener('click', function(e) {
+  if (!st.sessionPanelOpen) return
+  if (sessionPanelEl.contains(e.target) || sessionBtn.contains(e.target)) return
+  setSessionPanel(false)
+})
+modelSel.addEventListener('change', function() {
+  var v = modelSel.value
+  st.model = v ? { providerID: v.split('/')[0], modelID: v.slice(v.indexOf('/') + 1) } : null
+  addLog(st.label + ': ' + (v ? t('modelSet') + ' ' + v : t('modelDefaultSet')))
+})
+
+MenuAPI.onLanguageChange(function(newLang) {
+  lang = newLang
+  I18n.switchTo(newLang)
+  renderStaticText()
+})
+
+init()
+</script>
+</body>
+</html>

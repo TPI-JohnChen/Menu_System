@@ -68,13 +68,6 @@ app.post('/api/opencode/servers', (req, res) => {
 
   const targetId = id || generateId()
 
-  const existing = Array.from(serverMap.values()).find(s =>
-    s.host === host && s.port === port && s.id !== targetId
-  )
-  if (existing) {
-    return res.status(409).json({ error: '相同 host:port 的 server 已存在', existingId: existing.id })
-  }
-
   const server = {
     id: targetId,
     name,
@@ -110,7 +103,9 @@ app.all('/api/opencode/:serverId/*', async (req, res) => {
     return res.status(404).json({ error: 'Agent Server 未找到' })
   }
 
-  const targetUrl = `http://${server.host}:${server.port}/${targetPath}`
+  const queryIdx = req.originalUrl.indexOf('?')
+  const queryString = queryIdx !== -1 ? req.originalUrl.slice(queryIdx) : ''
+  const targetUrl = `http://${server.host}:${server.port}/${targetPath}${queryString}`
   const headers = { 'Content-Type': 'application/json' }
 
   if (server.username && server.password) {
@@ -120,10 +115,11 @@ app.all('/api/opencode/:serverId/*', async (req, res) => {
   }
 
   try {
+    const controller = new AbortController()
     const fetchOptions = {
       method: req.method,
       headers,
-      signal: AbortSignal.timeout(120000)
+      signal: controller.signal
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -134,21 +130,32 @@ app.all('/api/opencode/:serverId/*', async (req, res) => {
     const contentType = response.headers.get('content-type') || ''
 
     if (contentType.includes('text/event-stream')) {
+      res.status(response.status)
       res.setHeader('Content-Type', 'text/event-stream')
       res.setHeader('Cache-Control', 'no-cache')
       res.setHeader('Connection', 'keep-alive')
+      response.body.on('error', () => {})
+      res.on('close', () => {
+        response.body.unpipe(res)
+        controller.abort()
+      })
       response.body.pipe(res)
       return
     }
 
-    res.status(response.status)
+    const timer = setTimeout(() => controller.abort(), 120000)
+    try {
+      res.status(response.status)
 
-    if (contentType.includes('application/json')) {
-      const data = await response.json()
-      res.json(data)
-    } else {
-      const text = await response.text()
-      res.send(text)
+      if (contentType.includes('application/json')) {
+        const data = await response.json()
+        res.json(data)
+      } else {
+        const text = await response.text()
+        res.send(text)
+      }
+    } finally {
+      clearTimeout(timer)
     }
   } catch (error) {
     console.error(`[OpenCode] ${serverId} 轉發失敗:`, error.message)

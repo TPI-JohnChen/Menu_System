@@ -46,6 +46,19 @@
 | 供應商/模型選擇器 | ✅ Completed | 從 `/config/providers` 動態載入 |
 | 專案目錄切換 | ✅ Completed | 📂 dialog 列出 project，點選 reload |
 
+## v3.1 — OpenCode Serve 操作整合（✅ Completed 2026-08-02）
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| ai-proxy query string 轉發修正（B1） | ✅ Completed | `?directory=` 穿透 V1 root 路由 |
+| ai-proxy SSE 長連線修正（B2） | ✅ Completed | 移除固定 120s timeout，改 `res.on('close')` abort |
+| ai-proxy 整合測試 | ✅ Completed | `tests/opencode-proxy.test.js` 8 項，全 PASS |
+| opencode-manager.js namespace factory | ✅ Completed | `create(namespace, options)`，v3 向後相容 |
+| 「OpenCode Serve」平行一級選單 | ✅ Completed | 保留既有 Agent App，動態專案項目（server 名 · 專案名） |
+| 管理頁（server + 專案 CRUD） | ✅ Completed | `pages/opencode-serve-management.html` |
+| 單一專案聊天頁 | ✅ Completed | `pages/opencode-serve-chat.html`，SSE/模型/權限/中斷/新對話 |
+| 端對端驗證 | ✅ Completed | headless Chrome + CDP + mock serve 全流程通過 |
+
 ## v4 — OrientAI Menu 重新設計（📋 規劃完成 2026-07-29）
 
 | Feature | Status | Notes |

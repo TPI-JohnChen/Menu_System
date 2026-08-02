@@ -133,12 +133,12 @@ index.html?setting_debug=true
 
 ### start-services.bat（Windows）
 
-將此檔案放在 `C:\D\ai_cli\Menu_System\` 目錄下，雙擊即可啟動所有服務。
+此檔案位於 `system-architecture\start-services.bat`，雙擊即可啟動所有服務。
 
 ```batch
 @echo off
 @echo 啟動 AI Proxy...
-start "AI Proxy" cmd /c "cd /d C:\D\ai_cli\Menu_System\ai-proxy && npm start"
+start "AI Proxy" cmd /c "cd /d %~dp0..\ai-proxy && npm start"
 timeout /t 2 /nobreak > nul
 @echo 開啟前端頁面...
 start "" "http://localhost:3001/pages/provider-management.html"
@@ -146,6 +146,7 @@ start "" "http://localhost:3001/pages/provider-management.html"
 ```
 
 > ⚠ 2026-07-27 起改為開啟 `http://localhost:3001/...`（取代 `file:///`），以支援 SSE 串流等功能。
+> ⚠ 2026-08-02 起腳本搬移至 `system-architecture\` 根目錄，路徑以 `%~dp0..` 相對推算。
 > 如需啟用 Debug Panel，手動將瀏覽器網址改為 `http://localhost:3001/index.html?setting_debug=true`。
 
 ---

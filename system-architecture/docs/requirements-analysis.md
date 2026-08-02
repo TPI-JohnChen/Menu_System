@@ -171,7 +171,7 @@
   - BR-35：展開卡片顯示設定欄位 + 操作按鈕（測試連線/儲存/刪除）
   - BR-36：測試連線透過 AI Proxy 呼叫 `/api/opencode/:serverId/health`
   - BR-37：連線成功後自動抓取 project 列表
-- **狀態**：📋 規劃中（v3.0）
+- **狀態**：✅ 已完成（v3.0，2026-07-27）
 
 ### FR-15：動態 App Menu
 
@@ -184,7 +184,7 @@
   - BR-39：點擊 App 項目載入 Chat Bot 頁面，帶入 serverId + projectPath 參數
   - BR-40：若 Agent Server 離線，對應的 App 項目顯示離線狀態
   - BR-41：刪除 Agent Server 時一併移除對應的 App Menu 項目
-- **狀態**：📋 規劃中（v3.0）
+- **狀態**：✅ 已完成（v3.0，2026-07-27）
 
 ### FR-16：Chat Bot 頁面
 
@@ -201,7 +201,7 @@
   - BR-47：頁面提供供應商及模型選擇器（資料來自 `GET /config/providers`）
   - BR-48：訊息回覆支援串流顯示（透過 `GET /event` SSE 或輪詢）
   - BR-49：支援中斷正在進行的 AI 回覆 `POST /session/:id/abort`
-- **狀態**：📋 規劃中（v3.0）
+- **狀態**：✅ 已完成（v3.0，2026-07-27）
 
 ### FR-17：AI Proxy opencode 路由
 
@@ -225,7 +225,36 @@
   - BR-51：認證資訊不傳給前端，僅在 AI Proxy 內部使用
   - BR-52：每個 serverId 對應一組 server 連線設定
   - BR-53：Proxy 轉發時保留原始 HTTP method、headers 與 body
-- **狀態**：📋 規劃中（v3.0）
+- **狀態**：✅ 已完成（v3.0，2026-07-27）
+
+### FR-18：Services 啟動批次腳本
+
+- **描述**：提供一鍵啟動/停止/狀態檢查 ecosystem（ai-proxy + 前端頁面）的互動式批次腳本，位於 `system-architecture\start-services.bat`
+- **觸發條件**：使用者雙擊執行批次檔
+- **輸入**：menu 選擇（Start / Stop / Status / Exit）
+- **輸出**：啟動 ai-proxy（`npm start`）並開啟 `http://localhost:3001/` 前端；或停止/檢查 node 進程
+- **業務規則**：
+  - BR-54：腳本內服務路徑以 `%~dp0..` 相對推算，不得硬編絕對路徑
+  - BR-55：腳本須通過結構/靜態測試（`tests\start-services.Tests.ps1`），並可選 `-Live` 冒煙驗證真正啟動
+  - BR-56：健康檢查透過 `http://localhost:3001/api/health`
+- **狀態**：✅ 已完成（2026-08-02）
+
+### FR-19：OpenCode Serve 操作整合（平行一級選單）
+
+- **描述**：新增「OpenCode Serve」一級選單，用於連線與操作多個 opencode serve 實例。選單包含「OpenCode Serve 管理」子頁與動態產生的專案項目（所有 server 的專案扁平展開為二級項目，標籤為「server 名 · 專案名」）。整合 `OpenCode_Serve_Proj` 的關鍵技術：V1 root 路由（`/session`、`/permission`、`/config/providers`、`/event`）、SSE 逐字串流、權限自動放行、模型選擇器、單一專案聊天頁
+- **觸發條件**：使用者點擊 Menu「OpenCode Serve」
+- **輸入**：opencode serve 位址（host:port）、認證（可選）、專案目錄（label + directory）
+- **輸出**：管理頁 + 動態專案 Menu + 單一專案聊天頁
+- **業務規則**：
+  - BR-57：每個 server 有獨立 id 與專案清單，存於 localStorage（namespace：`opencode_serve_servers`）
+  - BR-58：所有 V1 root 路由請求經 ai-proxy `/api/opencode/:serverId/*` 中轉，proxy 轉發時保留 query string（`?directory=`）
+  - BR-59：SSE 長連線不得因固定 timeout 被掐斷；連線終止以 `req.on('close')` 為準
+  - BR-60：Menu 專案項目為「server 名 · 專案 label」，點擊開啟 `opencode-serve-chat.html?serverId=&worktree=&label=`
+  - BR-61：聊天頁為單一專案（無分頁列），功能含 session 沿用/新建、SSE 串流、模型選擇、權限自動放行、中斷、新對話、防爆 log 面板
+  - BR-62：刪除 server 時一併移除其專案 Menu 項目
+  - BR-63：聊天頁支援 i18n（zh-TW/en）與 iframe 主題同步
+  - BR-64：proxy 允許相同 host:port 重複註冊（跨 namespace 各自獨立 server id），不因 host:port 衝突而拒絕
+- **狀態**：✅ 已完成（2026-08-02，v3.1）
 
 ---
 
@@ -286,6 +315,17 @@
 | BR-51 | 認證資訊僅在 AI Proxy 內部使用，不傳前端 | FR-17 |
 | BR-52 | 每個 serverId 對應一組 server 連線設定 | FR-17 |
 | BR-53 | Proxy 轉發時保留原始 HTTP method、headers 與 body | FR-17 |
+| BR-54 | 啟動腳本內服務路徑以 `%~dp0..` 相對推算 | FR-18 |
+| BR-55 | 啟動腳本須通過結構/靜態測試，並可選 `-Live` 冒煙 | FR-18 |
+| BR-56 | 健康檢查透過 `http://localhost:3001/api/health` | FR-18 |
+| BR-57 | 每個 server 有獨立 id 與專案清單，存於 localStorage namespace `opencode_serve_servers` | FR-19 |
+| BR-58 | V1 root 路由請求經 ai-proxy 中轉，proxy 保留 query string（`?directory=`） | FR-19 |
+| BR-59 | SSE 長連線不得因固定 timeout 被掐斷，終止以 `req.on('close')` 為準 | FR-19 |
+| BR-60 | Menu 專案項目為「server 名 · 專案 label」，點擊開啟單一專案聊天頁 | FR-19 |
+| BR-61 | 聊天頁為單一專案，功能含 session/SSE/模型/權限/中斷/新對話/log | FR-19 |
+| BR-62 | 刪除 server 時一併移除其專案 Menu 項目 | FR-19 |
+| BR-63 | 聊天頁支援 i18n（zh-TW/en）與 iframe 主題同步 | FR-19 |
+| BR-64 | Proxy 允許相同 host:port 重複註冊，跨 namespace 各自獨立 server id | FR-19 |
 
 ---
 
@@ -298,3 +338,6 @@
 | 2026-07-14 | 1.2 | 修正 BR-19：`?setting_debug=true` 改為加在 `index.html` 後面，query parameter 自動轉發到 iframe |
 | 2026-07-14 | 1.3 | FR-11/12/13 狀態更新為 ✅ 已完成（v2.0 實作完成） |
 | 2026-07-27 | 2.0 | 新增 FR-14（Agent Server 管理）、FR-15（動態 App Menu）、FR-16（Chat Bot 頁面）、FR-17（AI Proxy opencode 路由），BR-32 ~ BR-53 |
+| 2026-08-02 | 2.1 | 新增 FR-18（Services 啟動批次腳本）、BR-54 ~ BR-56；`start-services.bat` 搬移至 `system-architecture\` 並採相對路徑 |
+| 2026-08-02 | 2.2 | FR-14~17 狀態更新為 ✅（v3.0 實作完成）；新增 FR-19（OpenCode Serve 操作整合）、BR-57 ~ BR-63 |
+| 2026-08-02 | 2.3 | FR-19 狀態更新為 ✅（v3.1 實作完成）；新增 BR-64（proxy 允許相同 host:port 重複註冊） |

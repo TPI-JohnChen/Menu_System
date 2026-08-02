@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCode Serve 管理</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body {
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+    }
+
+    .proxy-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 20px; border-radius: 6px; font-size: 14px; }
+    .proxy-status.connected { background: var(--color-menu-active); color: var(--color-menu-active-text); }
+    .proxy-status.disconnected { background: #f8d7da; color: #721c24; }
+    .proxy-status.checking { background: var(--color-menu-hover); color: var(--color-text-secondary); }
+
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header-row h1 { margin: 0; font-size: 24px; }
+
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-primary { background: var(--color-primary); color: white; }
+    .btn-primary:hover { background: var(--color-primary-hover); }
+    .btn-secondary { background: var(--color-text-secondary); color: white; }
+    .btn-secondary:hover { opacity: 0.9; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-danger:hover { background: #c82333; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-success:hover { background: #218838; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .server-card { border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; background: var(--color-surface); }
+    .server-card-header { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; user-select: none; }
+    .server-card-header:hover { background: var(--color-menu-hover); }
+    .server-card-icon { font-size: 24px; margin-right: 12px; }
+    .server-card-info { flex: 1; }
+    .server-card-name { font-weight: 600; }
+    .server-card-addr { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+    .server-card-status { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .server-card-status.connected { background: var(--color-menu-active); color: var(--color-menu-active-text); }
+    .server-card-status.error { background: #f8d7da; color: #721c24; }
+    .server-card-status.unknown { background: var(--color-menu-hover); color: var(--color-text-secondary); }
+    .server-card-toggle { margin-left: 12px; font-size: 12px; color: var(--color-text-secondary); }
+
+    .server-card-body { display: none; padding: 16px; border-top: 1px solid var(--color-border); }
+    .server-card.expanded .server-card-body { display: block; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
+    .form-group input { width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 14px; box-sizing: border-box; background: var(--color-surface); color: var(--color-text); }
+    .form-group input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(0,123,255,0.25); }
+
+    .projects-section { margin-top: 12px; padding: 12px; background: var(--color-menu-hover); border-radius: 6px; }
+    .projects-section h4 { margin: 0 0 8px 0; font-size: 13px; color: var(--color-text-secondary); }
+    .project-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 13px; }
+    .project-item .pdir { color: var(--color-text-secondary); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-item .px { cursor: pointer; color: var(--color-text-secondary); font-weight: 700; padding: 0 4px; }
+    .project-item .px:hover { color: #dc3545; }
+    .project-add-row { display: flex; gap: 6px; margin-top: 8px; }
+    .project-add-row input { flex: 1; padding: 6px 9px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 13px; box-sizing: border-box; background: var(--color-surface); color: var(--color-text); }
+    .project-add-row input:focus { outline: none; border-color: var(--color-primary); }
+    .empty-projects { font-size: 12px; color: var(--color-text-secondary); padding: 4px 0; }
+
+    .card-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+
+    .dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .dialog-overlay.active { display: flex; }
+    .dialog { background: var(--color-surface); border-radius: 8px; padding: 24px; width: 400px; max-width: 90vw; }
+    .dialog h2 { margin: 0 0 16px 0; font-size: 20px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    .empty-state { text-align: center; padding: 40px; color: var(--color-text-secondary); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; z-index: 2000; animation: slideIn 0.3s ease; }
+    .toast.success { background: #28a745; }
+    .toast.error { background: #dc3545; }
+    .toast.info { background: #17a2b8; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div class="header-row">
+    <h1 id="page-title"></h1>
+    <button class="btn btn-primary" id="addServerBtn"></button>
+  </div>
+
+  <div class="proxy-status checking" id="proxyStatus">
+    <span>⏳</span>
+    <span id="proxy-status-text"></span>
+  </div>
+
+  <div id="serverList"></div>
+
+  <div class="dialog-overlay" id="addDialog">
+    <div class="dialog">
+      <h2 id="dialog-title"></h2>
+      <div class="form-group">
+        <label id="label-name"></label>
+        <input type="text" id="serverName">
+      </div>
+      <div class="form-group">
+        <label id="label-host"></label>
+        <input type="text" id="serverHost" placeholder="localhost">
+      </div>
+      <div class="form-group">
+        <label id="label-port"></label>
+        <input type="number" id="serverPort" value="4096">
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="cancelAddBtn"></button>
+        <button class="btn btn-primary" id="confirmAddBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="confirmDialog">
+    <div class="dialog">
+      <p id="confirmMessage"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="confirmCancelBtn"></button>
+        <button class="btn btn-danger" id="confirmOkBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../lib/i18n.js"></script>
+  <script src="../lib/iframe-client.js"></script>
+  <script src="../lib/opencode-manager.js?v=20260802"></script>
+  <script>
+    (function() {
+      'use strict'
+
+      var M = OpenCodeServeManager
+
+      var T = {
+        'zh-TW': {
+          title: 'OpenCode Serve 管理',
+          addServer: '+ 新增 Server',
+          proxyChecking: '檢查 Proxy 連線狀態...',
+          proxyConnected: 'Proxy 已連線',
+          proxyDisconnected: 'Proxy 未連線 — 請先啟動 ai-proxy 服務',
+          dialogTitle: '新增 OpenCode Serve',
+          nameLabel: 'Server 名稱',
+          namePlaceholder: '例如：本機開發',
+          hostLabel: 'Host',
+          hostPlaceholder: 'localhost',
+          portLabel: 'Port',
+          cancel: '取消',
+          confirm: '確認新增',
+          statusConnected: '已連線',
+          statusError: '連線失敗',
+          statusUnknown: '未連線',
+          toggleExpand: '▶ 展開',
+          toggleCollapse: '▼ 收合',
+          btnTest: '測試連線',
+          btnSave: '儲存',
+          btnDelete: '刪除',
+          emptyState: '尚未新增任何 OpenCode Serve',
+          toastTesting: '正在測試連線...',
+          toastTestSuccess: '連線成功！',
+          toastTestFailed: '連線失敗：',
+          toastSaved: '儲存成功',
+          toastDeleted: '已刪除',
+          toastAdded: '已新增',
+          toastHealthFail: '無法連線到 OpenCode Serve',
+          projectsTitle: '專案目錄（Menu 項目）',
+          projectsEmpty: '尚未定義專案 — 新增後會出現在左側 Menu',
+          addProjectPlaceholder: '專案目錄，例：C:\\work\\my_project',
+          addLabelPlaceholder: '專案名稱（留空取目錄名）',
+          addProjectBtn: '＋',
+          deleteProject: '移除此專案',
+          duplicateProject: '此專案目錄已存在',
+          requireDir: '請輸入專案目錄路徑',
+          directoriesTitle: 'Server 已知目錄（參考）',
+          usernameLabel: 'Username',
+          passwordLabel: 'Password',
+          serverExists: '相同 host:port 的 server 已存在',
+          confirmDelete: '確定要刪除此 OpenCode Serve 嗎？\n(其專案 Menu 項目也將一併移除)'
+        },
+        'en': {
+          title: 'OpenCode Serve Management',
+          addServer: '+ Add Server',
+          proxyChecking: 'Checking Proxy status...',
+          proxyConnected: 'Proxy connected',
+          proxyDisconnected: 'Proxy disconnected — please start ai-proxy service',
+          dialogTitle: 'Add OpenCode Serve',
+          nameLabel: 'Server Name',
+          namePlaceholder: 'e.g. Local Dev',
+          hostLabel: 'Host',
+          hostPlaceholder: 'localhost',
+          portLabel: 'Port',
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+          statusConnected: 'Connected',
+          statusError: 'Error',
+          statusUnknown: 'Unknown',
+          toggleExpand: '▶ Expand',
+          toggleCollapse: '▼ Collapse',
+          btnTest: 'Test Connection',
+          btnSave: 'Save',
+          btnDelete: 'Delete',
+          emptyState: 'No OpenCode Serve added yet',
+          toastTesting: 'Testing connection...',
+          toastTestSuccess: 'Connection successful!',
+          toastTestFailed: 'Connection failed: ',
+          toastSaved: 'Saved',
+          toastDeleted: 'Deleted',
+          toastAdded: 'Added',
+          toastHealthFail: 'Cannot connect to OpenCode Serve',
+          projectsTitle: 'Project directories (Menu items)',
+          projectsEmpty: 'No projects defined — add one to appear in the left Menu',
+          addProjectPlaceholder: 'Project directory, e.g. C:\\work\\my_project',
+          addLabelPlaceholder: 'Project name (blank = directory name)',
+          addProjectBtn: '+',
+          deleteProject: 'Remove this project',
+          duplicateProject: 'This project directory already exists',
+          requireDir: 'Please enter a project directory',
+          directoriesTitle: 'Known directories (reference)',
+          usernameLabel: 'Username',
+          passwordLabel: 'Password',
+          serverExists: 'A server with the same host:port already exists',
+          confirmDelete: 'Delete this OpenCode Serve?\n(Its project menu items will also be removed)'
+        }
+      }
+
+      var lang = localStorage.getItem('lang') || 'zh-TW'
+      var expandedCards = {}
+
+      function t() {
+        return T[lang] || T['zh-TW']
+      }
+
+      function renderStaticText() {
+        var tt = t()
+        document.getElementById('page-title').textContent = tt.title
+        document.title = tt.title
+        document.getElementById('addServerBtn').textContent = tt.addServer
+        document.getElementById('dialog-title').textContent = tt.dialogTitle
+        document.getElementById('label-name').textContent = tt.nameLabel
+        document.getElementById('label-host').textContent = tt.hostLabel
+        document.getElementById('label-port').textContent = tt.portLabel
+        document.getElementById('serverName').placeholder = tt.namePlaceholder
+        document.getElementById('serverHost').placeholder = tt.hostPlaceholder
+        document.getElementById('cancelAddBtn').textContent = tt.cancel
+        document.getElementById('confirmAddBtn').textContent = tt.confirm
+      }
+
+      function init() {
+        lang = localStorage.getItem('lang') || 'zh-TW'
+        renderStaticText()
+        renderServerList()
+        checkProxy()
+        setupDialog()
+        setupEventDelegation()
+      }
+
+      // ========== Proxy 狀態檢查 ==========
+
+      function checkProxy() {
+        var el = document.getElementById('proxyStatus')
+        var tt = t()
+        el.className = 'proxy-status checking'
+        el.innerHTML = '<span>⏳</span><span>' + tt.proxyChecking + '</span>'
+
+        fetch('http://localhost:3001/api/health', { signal: AbortSignal.timeout(3000) })
+          .then(function(r) { return r.ok })
+          .catch(function() { return false })
+          .then(function(connected) {
+            if (connected) {
+              el.className = 'proxy-status connected'
+              el.innerHTML = '<span>🟢</span><span>' + tt.proxyConnected + '</span>'
+            } else {
+              el.className = 'proxy-status disconnected'
+              el.innerHTML = '<span>🔴</span><span>' + tt.proxyDisconnected + '</span>'
+            }
+          })
+      }
+
+      // ========== Server 列表渲染 ==========
+
+      function renderServerList() {
+        var container = document.getElementById('serverList')
+        var servers = M.getServers()
+        var tt = t()
+
+        if (servers.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="icon">🔌</div><div>' + tt.emptyState + '</div></div>'
+          return
+        }
+
+        container.innerHTML = servers.map(function(server) {
+          return renderServerCard(server)
+        }).join('')
+
+        Object.keys(expandedCards).forEach(function(id) {
+          if (expandedCards[id]) {
+            var card = document.getElementById('card-' + id)
+            if (card) card.classList.add('expanded')
+          }
+        })
+      }
+
+      function renderServerCard(server) {
+        var statusClass = server.status || 'unknown'
+        var tt = t()
+        var statusLabel = statusClass === 'connected' ? tt.statusConnected : statusClass === 'error' ? tt.statusError : tt.statusUnknown
+        var isExpanded = expandedCards[server.id] || false
+
+        var projects = M.getProjects(server.id)
+        var projectsHtml = '<div class="projects-section">' +
+          '<h4>' + tt.projectsTitle + '</h4>'
+        if (projects.length === 0) {
+          projectsHtml += '<div class="empty-projects">' + tt.projectsEmpty + '</div>'
+        } else {
+          projectsHtml += projects.map(function(p) {
+            var pLabel = p.label || basename(p.directory)
+            return '<div class="project-item">' +
+              '<span>📁</span>' +
+              '<span>' + escapeHtml(pLabel) + '</span>' +
+              '<span class="pdir" title="' + escapeHtml(p.directory) + '">' + escapeHtml(p.directory) + '</span>' +
+              '<span class="px" data-act="del-project" data-pid="' + p.id + '" title="' + tt.deleteProject + '">×</span>' +
+              '</div>'
+          }).join('')
+        }
+        projectsHtml += '<div class="project-add-row">' +
+          '<input type="text" data-act="proj-dir" placeholder="' + tt.addProjectPlaceholder + '">' +
+          '<input type="text" data-act="proj-label" placeholder="' + tt.addLabelPlaceholder + '">' +
+          '<button class="btn btn-primary btn-sm" data-act="add-project">' + tt.addProjectBtn + '</button>' +
+          '</div>' +
+          '</div>'
+
+        var dirsHtml = ''
+        var dirs = server.directories || []
+        if (dirs.length > 0) {
+          dirsHtml = '<div class="projects-section" style="margin-top:8px"><h4>' + tt.directoriesTitle + ' (' + dirs.length + ')</h4>' +
+            dirs.map(function(d) {
+              return '<div class="project-item"><span class="dot">📁</span>' + escapeHtml(basename(d)) + '<span class="pdir" title="' + escapeHtml(d) + '">' + escapeHtml(d) + '</span></div>'
+            }).join('') +
+            '</div>'
+        }
+
+        return '<div class="server-card' + (isExpanded ? ' expanded' : '') + '" id="card-' + server.id + '">' +
+          '<div class="server-card-header">' +
+            '<span class="server-card-icon">🔌</span>' +
+            '<div class="server-card-info">' +
+              '<div class="server-card-name">' + escapeHtml(server.name) + '</div>' +
+              '<div class="server-card-addr">' + escapeHtml(server.host) + ':' + server.port + '</div>' +
+            '</div>' +
+            '<span class="server-card-status ' + statusClass + '">' + statusLabel + '</span>' +
+            '<span class="server-card-toggle">' + (isExpanded ? tt.toggleCollapse : tt.toggleExpand) + '</span>' +
+          '</div>' +
+          '<div class="server-card-body">' +
+            '<div class="form-group"><label>' + tt.nameLabel + '</label><input type="text" data-field="name" value="' + escapeHtml(server.name) + '"></div>' +
+            '<div class="form-group"><label>' + tt.hostLabel + '</label><input type="text" data-field="host" value="' + escapeHtml(server.host) + '"></div>' +
+            '<div class="form-group"><label>' + tt.portLabel + '</label><input type="number" data-field="port" value="' + server.port + '"></div>' +
+            '<div class="form-group"><label>' + tt.usernameLabel + '</label><input type="text" data-field="username" value="' + escapeHtml(server.username || '') + '"></div>' +
+            '<div class="form-group"><label>' + tt.passwordLabel + '</label><input type="password" data-field="password" value="' + escapeHtml(server.password || '') + '"></div>' +
+            projectsHtml +
+            dirsHtml +
+            '<div class="card-actions">' +
+              '<button class="btn btn-success btn-sm test-btn">' + tt.btnTest + '</button>' +
+              '<button class="btn btn-primary btn-sm save-btn">' + tt.btnSave + '</button>' +
+              '<button class="btn btn-danger btn-sm delete-btn">' + tt.btnDelete + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      }
+
+      function basename(p) {
+        return String(p || '').split(/[/\\]/).filter(Boolean).pop() || p
+      }
+
+      function toggleCard(id) {
+        expandedCards[id] = !expandedCards[id]
+        var card = document.getElementById('card-' + id)
+        if (card) {
+          card.classList.toggle('expanded')
+          var toggle = card.querySelector('.server-card-toggle')
+          if (toggle) {
+            toggle.textContent = expandedCards[id] ? t().toggleCollapse : t().toggleExpand
+          }
+        }
+      }
+
+      // ========== Server 操作 ==========
+
+      function getServerDataFromCard(card) {
+        var id = card.id.replace('card-', '')
+        var server = M.getServerById(id)
+        if (!server) return null
+        var inputs = card.querySelectorAll('input[data-field]')
+        inputs.forEach(function(input) {
+          server[input.dataset.field] = input.dataset.field === 'port' ? Number(input.value) : input.value
+        })
+        return server
+      }
+
+      async function testConnection(id) {
+        var server = M.getServerById(id)
+        if (!server) return
+        var tt = t()
+
+        showToast(tt.toastTesting, 'info')
+
+        var healthy = await M.checkHealth(id)
+        if (healthy) {
+          server.status = 'connected'
+          server.lastConnected = new Date().toISOString()
+          M.saveServer(server)
+
+          var dirs = await M.fetchSessionDirectories(id)
+          server.directories = dirs
+          M.saveServer(server)
+          M.refreshMenu()
+
+          showToast(tt.toastTestSuccess, 'success')
+        } else {
+          server.status = 'error'
+          M.saveServer(server)
+          showToast(tt.toastHealthFail, 'error')
+        }
+        renderServerList()
+      }
+
+      function saveServerSettings(id) {
+        var card = document.getElementById('card-' + id)
+        if (!card) return
+        var server = getServerDataFromCard(card)
+        if (!server) return
+        var tt = t()
+
+        server.status = 'unknown'
+        M.saveServer(server)
+        M.refreshMenu()
+        showToast(tt.toastSaved, 'success')
+        renderServerList()
+      }
+
+      async function deleteServer(id) {
+        var tt = t()
+        var confirmed = await showConfirm(tt.confirmDelete)
+        if (!confirmed) return
+
+        M.deleteServer(id)
+        delete expandedCards[id]
+        M.refreshMenu()
+        renderServerList()
+        showToast(tt.toastDeleted, 'success')
+      }
+
+      // ========== 專案操作 ==========
+
+      function addProject(serverId) {
+        var card = document.getElementById('card-' + serverId)
+        if (!card) return
+        var server = M.getServerById(serverId)
+        if (!server) return
+        var tt = t()
+
+        var dirInput = card.querySelector('input[data-act="proj-dir"]')
+        var labelInput = card.querySelector('input[data-act="proj-label"]')
+        var directory = dirInput.value.trim()
+        if (!directory) {
+          showToast(tt.requireDir, 'error')
+          return
+        }
+
+        var ok = M.saveProject(server, { label: labelInput.value.trim(), directory: directory })
+        if (!ok) {
+          showToast(tt.duplicateProject, 'error')
+          return
+        }
+        dirInput.value = ''
+        labelInput.value = ''
+        M.refreshMenu()
+        renderServerList()
+      }
+
+      function removeProject(serverId, projectId) {
+        M.deleteProject(serverId, projectId)
+        M.refreshMenu()
+        renderServerList()
+      }
+
+      // ========== 新增 Dialog ==========
+
+      function setupDialog() {
+        var dialog = document.getElementById('addDialog')
+        var nameInput = document.getElementById('serverName')
+        var hostInput = document.getElementById('serverHost')
+        var portInput = document.getElementById('serverPort')
+
+        document.getElementById('addServerBtn').addEventListener('click', function() {
+          nameInput.value = ''
+          hostInput.value = 'localhost'
+          portInput.value = '4096'
+          dialog.classList.add('active')
+        })
+
+        document.getElementById('cancelAddBtn').addEventListener('click', function() {
+          dialog.classList.remove('active')
+        })
+
+        document.getElementById('confirmAddBtn').addEventListener('click', function() {
+          var name = nameInput.value.trim()
+          var host = hostInput.value.trim()
+          var port = Number(portInput.value)
+          var tt = t()
+
+          if (!name || !host || !port) {
+            showToast('請填寫所有欄位', 'error')
+            return
+          }
+
+          var servers = M.getServers()
+          var exists = servers.some(function(s) { return s.host === host && s.port === port })
+          if (exists) {
+            showToast(tt.serverExists, 'error')
+            return
+          }
+
+          var server = {
+            id: 'srv-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+            name: name,
+            host: host,
+            port: port,
+            username: '',
+            password: '',
+            status: 'unknown',
+            directories: [],
+            lastConnected: null
+          }
+
+          M.saveServer(server)
+          expandedCards[server.id] = true
+          renderServerList()
+          dialog.classList.remove('active')
+          showToast(tt.toastAdded, 'success')
+        })
+
+        dialog.addEventListener('click', function(e) {
+          if (e.target === dialog) dialog.classList.remove('active')
+        })
+      }
+
+      function setupEventDelegation() {
+        document.getElementById('serverList').addEventListener('click', function(e) {
+          var target = e.target.closest('button, .server-card-header, .px')
+          if (!target) return
+
+          var card = target.closest('.server-card')
+          if (!card) return
+          var id = card.id.replace('card-', '')
+
+          if (target.classList.contains('test-btn')) { testConnection(id) }
+          else if (target.classList.contains('save-btn')) { saveServerSettings(id) }
+          else if (target.classList.contains('delete-btn')) { deleteServer(id) }
+          else if (target.classList.contains('server-card-header')) { toggleCard(id) }
+          else if (target.dataset.act === 'add-project') { addProject(id) }
+          else if (target.dataset.act === 'del-project') { removeProject(id, target.dataset.pid) }
+        })
+
+        document.getElementById('serverList').addEventListener('keydown', function(e) {
+          if (e.key !== 'Enter') return
+          var target = e.target.closest('input[data-act="proj-dir"], input[data-act="proj-label"]')
+          if (!target) return
+          var card = target.closest('.server-card')
+          if (!card) return
+          addProject(card.id.replace('card-', ''))
+        })
+      }
+
+      // ========== 工具函式 ==========
+
+      function escapeHtml(text) {
+        var div = document.createElement('div')
+        div.textContent = text == null ? '' : String(text)
+        return div.innerHTML
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div')
+        toast.className = 'toast ' + (type || 'info')
+        toast.textContent = message
+        document.body.appendChild(toast)
+        setTimeout(function() { toast.remove() }, 3000)
+      }
+
+      function showConfirm(message) {
+        return new Promise(function(resolve) {
+          var dialog = document.getElementById('confirmDialog')
+          var msg = document.getElementById('confirmMessage')
+          var okBtn = document.getElementById('confirmOkBtn')
+          var cancelBtn = document.getElementById('confirmCancelBtn')
+          var tt = t()
+
+          msg.textContent = message
+          okBtn.textContent = tt.confirmDelete
+          cancelBtn.textContent = tt.cancel
+          dialog.classList.add('active')
+
+          function close(result) {
+            dialog.classList.remove('active')
+            okBtn.removeEventListener('click', onOk)
+            cancelBtn.removeEventListener('click', onCancel)
+            dialog.removeEventListener('click', onOverlay)
+            resolve(result)
+          }
+          function onOk() { close(true) }
+          function onCancel() { close(false) }
+          function onOverlay(e) { if (e.target === dialog) close(false) }
+
+          okBtn.addEventListener('click', onOk)
+          cancelBtn.addEventListener('click', onCancel)
+          dialog.addEventListener('click', onOverlay)
+        })
+      }
+
+      // ========== 語言切換 ==========
+
+      MenuAPI.onLanguageChange(function(newLang) {
+        lang = newLang
+        I18n.switchTo(newLang)
+        renderStaticText()
+        renderServerList()
+      })
+
+      document.addEventListener('DOMContentLoaded', init)
+    })()
+  </script>
+</body>
+</html>

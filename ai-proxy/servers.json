@@ -54,5 +54,21 @@
     "port": 4097,
     "username": "",
     "password": ""
+  },
+  {
+    "id": "srv-msbq6xtx-3wdn",
+    "name": "1st",
+    "host": "localhost",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-msbqsz1l-0dqp",
+    "name": "1st",
+    "host": "localhost",
+    "port": 4096,
+    "username": "",
+    "password": ""
   }
 ]

@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test:opencode": "node tests/opencode-proxy.test.js"
   },
   "keywords": ["ai", "proxy", "openai", "ollama", "anthropic"],
   "author": "John",

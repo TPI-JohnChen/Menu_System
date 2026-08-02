@@ -11,4 +11,5 @@
   ContentManager.init();
   FooterManager.init();
   OpenCodeManager.init();
+  OpenCodeServeManager.init();
 })();
