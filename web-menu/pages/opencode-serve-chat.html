@@ -419,8 +419,8 @@ var st = {
   turnStart: null,
   ttft: null,
   turnEnd: null,
-  modelRef: null,
   model: null,
+  lastUserModel: null,
   lastAssistantID: null,
   replied: new Set(),
   sessionList: [],
@@ -499,7 +499,15 @@ function renderMessage(mid) {
 
   var who = document.createElement('div')
   who.className = 'who'
-  who.textContent = entry.info && entry.info.role === 'user' ? t('whoUser') : (entry.info && entry.info.title || t('whoAssistant'))
+  var whoText
+  if (entry.info && entry.info.role === 'user') {
+    whoText = t('whoUser')
+  } else if (entry.info && entry.info.modelID) {
+    whoText = t('whoAssistant') + ' · ' + entry.info.modelID
+  } else {
+    whoText = (entry.info && entry.info.title) || t('whoAssistant')
+  }
+  who.textContent = whoText
   container.appendChild(who)
 
   var bubble = document.createElement('div')
@@ -518,10 +526,9 @@ function renderMessage(mid) {
     var meta = document.createElement('div')
     meta.className = 'meta'
     var bits = []
-    if (entry.meta.model) bits.push(t('modelSet') + ' ' + entry.meta.model)
-    bits.push('TTFT ' + fmtMs(entry.meta.ttft))
-    bits.push(t('doneLabel') + ' ' + fmtMs(entry.meta.total))
-    meta.textContent = bits.join(' · ')
+    if (entry.meta.ttft != null) bits.push('TTFT ' + fmtMs(entry.meta.ttft))
+    if (entry.meta.total != null) bits.push(t('doneLabel') + ' ' + fmtMs(entry.meta.total))
+    if (bits.length) meta.textContent = bits.join(' · ')
     container.appendChild(meta)
   }
   messagesEl.appendChild(container)
@@ -806,7 +813,7 @@ function completeTurn() {
     st.turnEnd = performance.now() - st.turnStart
     if (st.lastAssistantID) {
       var e = st.messages.get(st.lastAssistantID)
-      if (e) e.meta = { model: st.modelRef, ttft: st.ttft, total: st.turnEnd }
+      if (e) e.meta = { ttft: st.ttft, total: st.turnEnd }
     }
   }
   if (st.busy) {
@@ -827,7 +834,6 @@ function handleEvent(evt) {
       upsertMessage(props.info)
       if (props.info && props.info.role === 'assistant') {
         st.lastAssistantID = props.info.id
-        if (props.info.modelID) st.modelRef = props.info.modelID
       }
       renderAll()
       if (st.sessionPanelOpen) refreshSessionList()
@@ -1024,12 +1030,22 @@ async function loadHistoryInto() {
   if (!Array.isArray(msgs)) msgs = []
   st.historyTotal = msgs.length
   st.messages = new Map()
+  st.lastUserModel = null
+  for (var j = 0; j < msgs.length; j++) {
+    var mi = msgs[j]
+    if (mi && mi.info && mi.info.role === 'user' && mi.info.model && mi.info.model.modelID) {
+      st.lastUserModel = {
+        providerID: mi.info.model.providerID || '',
+        modelID: mi.info.model.modelID
+      }
+    }
+  }
   var start = Math.max(0, msgs.length - st.historyLimit)
   for (var i = start; i < msgs.length; i++) {
     var m = msgs[i]
     if (m && m.info) upsertMessage(m.info)
     if (m && m.parts) {
-      for (var j = 0; j < m.parts.length; j++) upsertPart(m.parts[j])
+      for (var jj = 0; jj < m.parts.length; jj++) upsertPart(m.parts[jj])
     }
   }
 }
@@ -1061,11 +1077,11 @@ async function switchSession(id) {
   st.messages = new Map()
   st.historyTotal = 0
   st.historyLimit = 20
+  st.lastUserModel = null
   st.loadingSession = true
   st.turnStart = null
   st.ttft = null
   st.turnEnd = null
-  st.modelRef = null
   st.lastAssistantID = null
   renderSessionPanel()
   try {
@@ -1074,11 +1090,13 @@ async function switchSession(id) {
   } catch (err) {
     st.loadingSession = false
     st.sessionID = null
+    st.lastUserModel = null
     st.sessionList = st.sessionList.filter(function(s) { return s.id !== id })
     addLog(t('loadMessagesFail') + ':' + err.message, 'perm')
     renderSessionPanel()
   }
   setSessionPanel(false)
+  applyDefaultModelLabel()
   connect()
   renderAll()
 }
@@ -1093,8 +1111,7 @@ function renderStaticText() {
   sendBtn.textContent = t('btnSend')
   inputEl.placeholder = t('inputPlaceholder')
   modelSel.title = t('modelDefault')
-  var first = modelSel.options[0]
-  if (first) first.textContent = t('modelDefault')
+  applyDefaultModelLabel()
   var nowdirText = st.label + (st.serverName ? ' · ' + st.serverName : '')
   nowdirEl.textContent = nowdirText
   nowdirEl.title = st.directory || ''
@@ -1143,7 +1160,6 @@ async function send() {
   st.turnStart = performance.now()
   st.ttft = null
   st.turnEnd = null
-  st.modelRef = null
   st.lastAssistantID = null
   try {
     var sessionID = await ensureSession()
@@ -1156,6 +1172,13 @@ async function send() {
     })
     if (res) {
       upsertMessage(res.info)
+      if (res.info && res.info.model && res.info.model.modelID) {
+        st.lastUserModel = {
+          providerID: res.info.model.providerID || '',
+          modelID: res.info.model.modelID
+        }
+        applyDefaultModelLabel()
+      }
       for (var i = 0; i < (res.parts || []).length; i++) upsertPart(res.parts[i])
     }
     renderAll()
@@ -1209,16 +1232,17 @@ async function newSession() {
     })
     st.sessionID = created.id
     st.messages = new Map()
+    st.lastUserModel = null
     st.turnStart = null
     st.ttft = null
     st.turnEnd = null
-    st.modelRef = null
     st.lastAssistantID = null
     st.replied = new Set()
     st.busy = false
     st.historyTotal = 0
     st.historyLimit = 20
     setSessionPanel(false)
+    applyDefaultModelLabel()
     refreshSessionList()
     addLog(st.label + ': ' + t('newSession') + ' ' + created.id)
     setStatus(t('statusIdle'), 'online')
@@ -1231,14 +1255,35 @@ async function newSession() {
 
 /* ===== 模型選擇 ===== */
 var modelLoadSeq = 0
+var currentDefaultLabel = null
+var modelOptions = []
+function applyDefaultModelLabel() {
+  var lbl = currentDefaultLabel
+  var last = st.lastUserModel
+  if (last && last.modelID) {
+    var key = last.providerID + '/' + last.modelID
+    for (var i = 0; i < modelOptions.length; i++) {
+      if (modelOptions[i].key === key) { lbl = modelOptions[i].label; break }
+    }
+  }
+  if (modelSel.options[0]) {
+    modelSel.options[0].textContent = lbl ? t('modelDefault') + ' · ' + lbl : t('modelDefault')
+  }
+}
 async function loadModels() {
   var seq = ++modelLoadSeq
   var current = function() { return seq === modelLoadSeq }
   var data = null
+  var cfg = null
   var ok = false
   for (var attempt = 1; attempt <= 5; attempt++) {
     try {
-      data = await api('/config/providers')
+      var results = await Promise.all([
+        api('/config/providers'),
+        api('/config')
+      ])
+      data = results[0]
+      cfg = results[1]
       ok = true
       break
     } catch (err) {
@@ -1259,6 +1304,7 @@ async function loadModels() {
     }
   }
   options.sort(function(a, b) { return a.label.localeCompare(b.label) })
+  modelOptions = options
   while (modelSel.options.length > 1) modelSel.remove(1)
   for (var oi = 0; oi < options.length; oi++) {
     var opt = document.createElement('option')
@@ -1266,6 +1312,22 @@ async function loadModels() {
     opt.textContent = options[oi].label
     modelSel.appendChild(opt)
   }
+  var defaultKey = ''
+  if (cfg && typeof cfg.model === 'string' && cfg.model.indexOf('/') !== -1) {
+    defaultKey = cfg.model
+  }
+  if (!defaultKey && data && data.default) {
+    var pids = Object.keys(data.default)
+    if (pids.length) defaultKey = pids[0] + '/' + data.default[pids[0]]
+  }
+  currentDefaultLabel = null
+  for (var mi = 0; mi < options.length; mi++) {
+    if (options[mi].key === defaultKey) {
+      currentDefaultLabel = options[mi].label
+      break
+    }
+  }
+  applyDefaultModelLabel()
   modelSel.value = st.model && st.model.modelID ? st.model.providerID + '/' + st.model.modelID : ''
 }
 

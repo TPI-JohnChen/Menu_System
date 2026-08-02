@@ -275,3 +275,37 @@
 | `web-menu/app.js` | 初始化 |
 | `web-menu/pages/opencode-serve-management.html` | 管理頁 |
 | `web-menu/pages/opencode-serve-chat.html` | 聊天頁 |
+
+---
+
+## 2026-08-02（聊天頁模型資訊可視化 — BR-65/BR-66）
+
+### 完成項目
+- 遵循完整 `/full-plan` 四階段流程（Phase 0→0.5→1→2→3→Build）
+- 產出需求更新、設計文件、實作計畫並完成實作
+
+### 實作項目
+- **Task 1**（預設模型揭露）：`loadModels()` 改為同 retry loop `Promise.all` 抓 `/config` + `/config/providers`；解析 defaultKey（`config.model` 優先 → `providers.default` 首個 provider 備援）；新增 `currentDefaultLabel` + `applyDefaultModelLabel()`，第一個 option 標註「預設模型 · Provider名 · 模型名」，value 維持 `""` 送預設
+- **Task 2**（who 行模型）：`renderMessage()` assistant 有 `info.modelID` → 「Assistant · 模型ID」；無則 fallback
+- **Task 3**（meta 行 + dead code）：meta 改 TTFT/完成有值才顯示；移除 `st.modelRef` 全部殘留；`renderStaticText()` 改呼叫 `applyDefaultModelLabel()`（切語系標註不遺失）
+
+### 驗證
+- `node --check` inline script → 語法通過
+- mock harness（vm + mock DOM/fetch）11 項全 PASS：
+  - T1 config.model 存在 → 標註「預設模型 · DeepSeek · deepseek-v4-flash-free」+ 同時抓兩端點
+  - T2 default 備援、T3 都無維持 4 字、T4 who 行有/無模型、T5、T6 meta 條件渲染、T7 modelRef 已移除、T8 applyDefaultModelLabel 存在、T9 切語系標註保留（en 版）
+
+### 後續修正（同一專案）—「預設模型」改用最後 user message 的 model
+- **動機**：使用者質疑為何 dropdown 顯示「LMStudio qwen/qwen3.5-9b」。RCA：全局 `opencode.json` 未設 `model` → `config.model` 空 → 舊 fallback 抓 `providers.default` 首個 provider（LMStudio），但 opencode 實際續用該 session 時看的是「最後 user message 的 `info.model`」（server currentModel 優先序之二），兩者不一致。
+- **實作**：新增 `st.lastUserModel`；`loadHistoryInto()` 全量掃描 msgs 取最後 user message 的 `info.model`（`{ providerID, modelID }`，全量非僅 historyLimit 範圍）；`applyDefaultModelLabel()` 改為 `lastUserModel` 優先、`currentDefaultLabel`（config.model → default）備援；`loadModels()` 把 options 存入 `modelOptions` 供對照；`switchSession`/`newSession` 重置 lastUserModel 並重標註；`send()` 成功後從 `res.info.model` 同步 lastUserModel
+- **驗證**：mock harness 擴充至 16 項，新增 T10 lastUserModel 優先於 config.model、T11 無對應退回 config.model、T12 loadHistoryInto 擷取最後 user message model 並更新標註 — 全 PASS；語法通過
+
+### 產出檔案
+| 檔案 | 說明 |
+|------|------|
+| `web-menu/pages/opencode-serve-chat.html` | 聊天頁模型資訊可視化（BR-65/BR-66） |
+| `docs/requirements-analysis.md` | BR-65/BR-66、changelog 2.4 |
+| `docs/superpowers/specs/2026-08-02-opencode-chat-model-display-design.md` | 設計文件 |
+| `docs/superpowers/specs/2026-08-02-opencode-chat-model-display-tasks.md` | 實作計畫（4 Tasks） |
+
+> 註：`ai-proxy/servers.json` 的 `playwright-test` server 為先前遺留變更，本次未觸及。

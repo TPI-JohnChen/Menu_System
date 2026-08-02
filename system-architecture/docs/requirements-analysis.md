@@ -254,7 +254,9 @@
   - BR-62：刪除 server 時一併移除其專案 Menu 項目
   - BR-63：聊天頁支援 i18n（zh-TW/en）與 iframe 主題同步
   - BR-64：proxy 允許相同 host:port 重複註冊（跨 namespace 各自獨立 server id），不因 host:port 衝突而拒絕
-- **狀態**：✅ 已完成（2026-08-02，v3.1）
+  - BR-65：聊天頁初次載入/切換專案時，以 `GET /config` 的 `model`（格式 provider/model）解析實際預設模型，並在模型下拉的「預設模型」選項標註實際模型（如「預設模型 · DeepSeek · deepseek-v4-flash-free」）；若 `config.model` 未設定，以 `/config/providers` 回應的 `default` 欄位（`{ [providerID]: modelID }`）第一個 provider 為備援
+  - BR-66：載入歷史訊息時，assistant 訊息需顯示其使用的模型（取自 `info.providerID/modelID`），於 who 行或 meta 行標示；TTFT/完成時間僅在當下串流回合顯示，歷史訊息不得顯示無意義的「TTFT —」
+- **狀態**：✅ 已完成（2026-08-02，v3.1，BR-65/BR-66 為 v3.2 計畫新增）
 
 ---
 
@@ -326,6 +328,8 @@
 | BR-62 | 刪除 server 時一併移除其專案 Menu 項目 | FR-19 |
 | BR-63 | 聊天頁支援 i18n（zh-TW/en）與 iframe 主題同步 | FR-19 |
 | BR-64 | Proxy 允許相同 host:port 重複註冊，跨 namespace 各自獨立 server id | FR-19 |
+| BR-65 | 聊天頁以 `GET /config` 的 `model` 解析實際預設模型並標註於下拉，備援為 `/config/providers` 的 `default` 欄位 | FR-19 |
+| BR-66 | 歷史訊息顯示 assistant 所用模型（`info.providerID/modelID`），TTFT/完成僅當下串流回合顯示 | FR-19 |
 
 ---
 
@@ -341,3 +345,4 @@
 | 2026-08-02 | 2.1 | 新增 FR-18（Services 啟動批次腳本）、BR-54 ~ BR-56；`start-services.bat` 搬移至 `system-architecture\` 並採相對路徑 |
 | 2026-08-02 | 2.2 | FR-14~17 狀態更新為 ✅（v3.0 實作完成）；新增 FR-19（OpenCode Serve 操作整合）、BR-57 ~ BR-63 |
 | 2026-08-02 | 2.3 | FR-19 狀態更新為 ✅（v3.1 實作完成）；新增 BR-64（proxy 允許相同 host:port 重複註冊） |
+| 2026-08-02 | 2.4 | 新增 BR-65（預設模型揭露）與 BR-66（歷史訊息顯示模型）；皆屬 FR-19 聊天頁 UX 強化（v3.2 計畫） |
