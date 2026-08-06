@@ -70,5 +70,45 @@
     "port": 4096,
     "username": "",
     "password": ""
+  },
+  {
+    "id": "srv-msbsj0t8-dzc0",
+    "name": "playwright-test",
+    "host": "127.0.0.1",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-mscn0nq8-udlg",
+    "name": "本機開發",
+    "host": "127.0.0.1",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-mscoom1y-lyzr",
+    "name": "1st",
+    "host": "localhost",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-msct98rp-dmjw",
+    "name": "1st",
+    "host": "localhost",
+    "port": 4096,
+    "username": "",
+    "password": ""
+  },
+  {
+    "id": "srv-msbpmard-y2zs",
+    "name": "1st",
+    "host": "127.0.0.1",
+    "port": 4096,
+    "username": "",
+    "password": ""
   }
 ]

@@ -3,7 +3,7 @@
 - 生成 .md 檔案時, 請一律以 zh-TW 為主要語系
 - 在編寫程式碼或 .md 時，請確保遵守 DRY 原則
 - 當程式有bug, 請查找 RCA
-- 當程式完成後, 自己測試
+- 當程式完成後, 你要記得問我要不要加入 /playwright-cli 測試工項
 - 需要我介入再以 windows 通知我
 - 工作完成後以 windows 通知我
 - 當使用 /full-plan 技能時, 專案層級指令來自 AGENTS.md → PLAN_AGENTS.md

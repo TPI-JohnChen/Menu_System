@@ -1177,6 +1177,9 @@ async function send() {
           providerID: res.info.model.providerID || '',
           modelID: res.info.model.modelID
         }
+        st.model = st.lastUserModel
+        persistLastModel(st.lastUserModel)
+        modelSel.value = st.lastUserModel.providerID + '/' + st.lastUserModel.modelID
         applyDefaultModelLabel()
       }
       for (var i = 0; i < (res.parts || []).length; i++) upsertPart(res.parts[i])
@@ -1232,7 +1235,8 @@ async function newSession() {
     })
     st.sessionID = created.id
     st.messages = new Map()
-    st.lastUserModel = null
+    st.lastUserModel = readLastModel()
+    if (st.lastUserModel) st.model = st.lastUserModel
     st.turnStart = null
     st.ttft = null
     st.turnEnd = null
@@ -1257,6 +1261,19 @@ async function newSession() {
 var modelLoadSeq = 0
 var currentDefaultLabel = null
 var modelOptions = []
+var LAST_MODEL_KEY = 'opencodeServe:lastModel:' + serverId + ':' + (worktree || '')
+function readLastModel() {
+  try {
+    var raw = localStorage.getItem(LAST_MODEL_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (e) { return null }
+}
+function persistLastModel(m) {
+  try {
+    if (m && m.modelID) localStorage.setItem(LAST_MODEL_KEY, JSON.stringify(m))
+    else localStorage.removeItem(LAST_MODEL_KEY)
+  } catch (e) { /* ignore */ }
+}
 function applyDefaultModelLabel() {
   var lbl = currentDefaultLabel
   var last = st.lastUserModel
@@ -1327,6 +1344,17 @@ async function loadModels() {
       break
     }
   }
+  var savedModel = readLastModel()
+  if (savedModel && savedModel.modelID && !st.model) {
+    var skey = savedModel.providerID + '/' + savedModel.modelID
+    for (var oi2 = 0; oi2 < options.length; oi2++) {
+      if (options[oi2].key === skey) {
+        st.model = savedModel
+        st.lastUserModel = savedModel
+        break
+      }
+    }
+  }
   applyDefaultModelLabel()
   modelSel.value = st.model && st.model.modelID ? st.model.providerID + '/' + st.model.modelID : ''
 }
@@ -1356,6 +1384,13 @@ document.addEventListener('click', function(e) {
 modelSel.addEventListener('change', function() {
   var v = modelSel.value
   st.model = v ? { providerID: v.split('/')[0], modelID: v.slice(v.indexOf('/') + 1) } : null
+  if (v) {
+    st.lastUserModel = { providerID: v.split('/')[0], modelID: v.slice(v.indexOf('/') + 1) }
+    persistLastModel(st.lastUserModel)
+  } else {
+    st.lastUserModel = null
+  }
+  applyDefaultModelLabel()
   addLog(st.label + ': ' + (v ? t('modelSet') + ' ' + v : t('modelDefaultSet')))
 })
 
